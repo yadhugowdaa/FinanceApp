@@ -1,40 +1,50 @@
-/**
- * MLKitService — Wrapper around Google ML Kit Text Recognition.
- * Runs entirely on-device, zero network calls.
- */
+import type {TextBlock} from '@react-native-ml-kit/text-recognition';
+import type {ParsedTransaction} from './ParserService';
 
-import TextRecognition from '@react-native-ml-kit/text-recognition';
-import {parseTransactionText, type ParsedTransaction} from './ParserService';
+const BACKEND_URL = 'http://localhost:3000/api/parse-receipt';
 
 export interface OCRResult {
   rawText: string;
   parsedTransaction: ParsedTransaction;
-  blocks: string[];
+  blocks: TextBlock[];
 }
 
 /**
- * Process an image URI through ML Kit Text Recognition,
- * then pipe the output through the ParserService.
+ * Uploads an image URI directly to our backend AI Microservice (Nvidia Gemma 3),
+ * which returns a perfectly structured ParsedTransaction.
  */
 export async function recognizeTextFromImage(
   imageUri: string,
 ): Promise<OCRResult> {
   try {
-    const result = await TextRecognition.recognize(imageUri);
+    const formData = new FormData();
+    formData.append('receipt', {
+      uri: imageUri,
+      type: 'image/jpeg',
+      name: 'receipt.jpg',
+    } as any);
 
-    const rawText = result.text;
-    const blocks = result.blocks.map(block => block.text);
+    const response = await fetch(BACKEND_URL, {
+      method: 'POST',
+      body: formData as any,
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
 
-    // Run recognized text through our parser
-    const parsedTransaction = parseTransactionText(rawText);
+    if (!response.ok) {
+      throw new Error(`Backend Error: ${response.status}`);
+    }
+
+    const backendParsedTransaction = await response.json() as ParsedTransaction;
 
     return {
-      rawText,
-      parsedTransaction,
-      blocks,
+      rawText: "View notes for product breakdown (Processed by Nvidia AI)",
+      parsedTransaction: backendParsedTransaction,
+      blocks: [], // No longer using spatial bounding boxes
     };
   } catch (error) {
-    console.error('ML Kit OCR Error:', error);
+    console.error('AI Microservice Error:', error);
     return {
       rawText: '',
       parsedTransaction: {
