@@ -12,7 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import BottomSheet, {BottomSheetScrollView} from '@gorhom/bottom-sheet';
-import {launchCamera} from 'react-native-image-picker';
+import {launchCamera, launchImageLibrary} from 'react-native-image-picker';
 import {Button, Colors, Typography, Spacing, BorderRadius} from '../../ui';
 import {useAppStore} from '../../store/useAppStore';
 import {categoriesCollection} from '../../database';
@@ -99,6 +99,9 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
       if (parsed.merchant) {
         setMerchant(parsed.merchant);
       }
+      if (parsed.extractedItems) {
+        setNotes(parsed.extractedItems);
+      }
       setType(parsed.type);
       setConfidence(parsed.confidence);
 
@@ -108,6 +111,55 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
     } catch (err: any) {
       Alert.alert('OCR Error', err?.message || 'Failed to process receipt');
       // Reopen sheet even on error
+      setTimeout(() => bottomSheetRef.current?.snapToIndex(0), 300);
+    } finally {
+      setOcrProcessing(false);
+    }
+  };
+
+  const handleGalleryPick = async () => {
+    try {
+      bottomSheetRef.current?.close();
+
+      const result = await launchImageLibrary({
+        mediaType: 'photo',
+        quality: 0.8,
+        maxWidth: 1200,
+        maxHeight: 1600,
+      });
+
+      if (result.didCancel || !result.assets?.[0]?.uri) {
+        setTimeout(() => bottomSheetRef.current?.snapToIndex(0), 300);
+        return;
+      }
+
+      setTimeout(() => bottomSheetRef.current?.snapToIndex(0), 300);
+      setOcrProcessing(true);
+      const imagePath = result.assets[0].uri;
+
+      // Run on-device ML Kit text recognition
+      const ocrResult = await recognizeTextFromImage(imagePath);
+      setOcrText(ocrResult.rawText);
+
+      // Use the already-parsed transaction from MLKitService
+      const parsed = ocrResult.parsedTransaction;
+      if (parsed.amount > 0) {
+        setAmount(parsed.amount.toString());
+      }
+      if (parsed.merchant) {
+        setMerchant(parsed.merchant);
+      }
+      if (parsed.extractedItems) {
+        setNotes(parsed.extractedItems);
+      }
+      setType(parsed.type);
+      setConfidence(parsed.confidence);
+
+      if (!ocrResult.rawText) {
+        Alert.alert('No Text Found', 'Could not recognize any text in the image.');
+      }
+    } catch (err: any) {
+      Alert.alert('OCR Error', err?.message || 'Failed to process receipt');
       setTimeout(() => bottomSheetRef.current?.snapToIndex(0), 300);
     } finally {
       setOcrProcessing(false);
@@ -265,26 +317,33 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
         {/* OCR mode */}
         {inputMode === 'ocr' && (
           <View style={styles.ocrSection}>
-            <TouchableOpacity
-              style={styles.ocrButton}
-              onPress={handleScanReceipt}
-              disabled={ocrProcessing}>
-              {ocrProcessing ? (
-                <>
-                  <ActivityIndicator size="large" color={Colors.primary} />
-                  <Text style={[styles.ocrText, {marginTop: Spacing.md}]}>Processing receipt...</Text>
-                  <Text style={styles.ocrSubtext}>Running on-device ML Kit OCR</Text>
-                </>
-              ) : (
-                <>
+            {ocrProcessing ? (
+               <View style={styles.ocrProcessingBox}>
+                 <ActivityIndicator size="large" color={Colors.primary} />
+                 <Text style={[styles.ocrText, {marginTop: Spacing.md}]}>Processing receipt...</Text>
+                 <Text style={styles.ocrSubtext}>Running on-device ML Kit OCR</Text>
+               </View>
+            ) : (
+              <View style={styles.ocrButtonGroup}>
+                <TouchableOpacity
+                  style={[styles.ocrButton, { flex: 1, marginRight: Spacing.sm }]}
+                  onPress={handleScanReceipt}
+                  activeOpacity={0.8}>
                   <Text style={styles.ocrIcon}>📷</Text>
-                  <Text style={styles.ocrText}>Tap to scan receipt</Text>
-                  <Text style={styles.ocrSubtext}>
-                    Uses on-device ML Kit (no internet needed)
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
+                  <Text style={styles.ocrText}>Camera</Text>
+                  <Text style={styles.ocrSubtext}>Take a photo</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.ocrButton, { flex: 1, marginLeft: Spacing.sm }]}
+                  onPress={handleGalleryPick}
+                  activeOpacity={0.8}>
+                  <Text style={styles.ocrIcon}>🖼️</Text>
+                  <Text style={styles.ocrText}>Gallery</Text>
+                  <Text style={styles.ocrSubtext}>Pick screenshot</Text>
+                </TouchableOpacity>
+              </View>
+            )}
             {ocrText ? (
               <View style={styles.ocrResultBox}>
                 <Text style={styles.ocrResultLabel}>Recognized Text:</Text>
@@ -382,11 +441,13 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
         <View style={styles.fieldGroup}>
           <Text style={styles.fieldLabel}>Notes (optional)</Text>
           <TextInput
-            style={styles.textField}
+            style={[styles.textField, {minHeight: 80, textAlignVertical: 'top'}]}
             placeholder="Add a note..."
             placeholderTextColor={Colors.textTertiary}
             value={notes}
             onChangeText={setNotes}
+            multiline={true}
+            numberOfLines={4}
           />
         </View>
 
@@ -485,11 +546,28 @@ const styles = StyleSheet.create({
   ocrButton: {
     backgroundColor: Colors.background,
     borderRadius: BorderRadius.lg,
-    padding: Spacing.xxl,
+    padding: Spacing.xl,
     alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 2,
     borderColor: Colors.border,
     borderStyle: 'dashed',
+    minHeight: 140,
+  },
+  ocrButtonGroup: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  ocrProcessingBox: {
+    backgroundColor: Colors.background,
+    borderWidth: 2,
+    borderColor: Colors.border,
+    borderStyle: 'dashed',
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 140,
   },
   ocrIcon: {
     fontSize: 48,
