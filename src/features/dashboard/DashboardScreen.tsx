@@ -1,4 +1,4 @@
-import React, {useEffect, useState, useCallback} from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -7,574 +7,271 @@ import {
   TouchableOpacity,
   StatusBar,
   RefreshControl,
+  Platform,
 } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
-import {PieChart} from 'react-native-gifted-charts';
-import {Card, Colors, Typography, Spacing, BorderRadius, Shadows} from '../../ui';
-import {useAppStore} from '../../store/useAppStore';
-import {
-  calculatePacing,
-  getMonthStartTimestamp,
-  getTodayStartTimestamp,
-} from '../../services/PacingEngine';
-import {
-  getTotalSpentThisMonth,
-  getTotalSpentToday,
-  getTotalIncome,
-  getMonthlySpentByCategory,
-} from '../../services/TransactionService';
-import {usersCollection, categoriesCollection, transactionsCollection} from '../../database';
-import {Q} from '@nozbe/watermelondb';
-import type {PacingResult} from '../../services/PacingEngine';
+import {Colors, Typography, Spacing, BorderRadius, LiquidGlass} from '../../ui';
+import {useDashboardLogic} from './useDashboardLogic';
+import Icon from 'react-native-vector-icons/Feather';
+
 
 const DashboardScreen: React.FC<{navigation: any}> = ({navigation}) => {
-  const {userId} = useAppStore();
-  const [pacing, setPacing] = useState<PacingResult | null>(null);
-  const [totalIncome, setTotalIncome] = useState(0);
-  const [totalExpenses, setTotalExpenses] = useState(0);
-  const [categoryBreakdown, setCategoryBreakdown] = useState<
-    Array<{name: string; value: number; color: string}>
-  >([]);
-  const [recentTransactions, setRecentTransactions] = useState<
-    Array<{id: string; merchant: string; amount: number; type: string; date: Date}>
-  >([]);
-  const [refreshing, setRefreshing] = useState(false);
-  const [userName, setUserName] = useState('');
-
-  const loadData = useCallback(async () => {
-    if (!userId) {return;}
-
-    try {
-      const user = await usersCollection.find(userId);
-      setUserName(user.displayName || 'there');
-
-      const monthStart = getMonthStartTimestamp();
-      const todayStart = getTodayStartTimestamp();
-
-      const [spentMonth, spentToday, income] = await Promise.all([
-        getTotalSpentThisMonth(userId, monthStart),
-        getTotalSpentToday(userId, todayStart),
-        getTotalIncome(userId, monthStart),
-      ]);
-
-      setTotalIncome(income + user.monthlyIncome);
-      setTotalExpenses(spentMonth + user.fixedExpenses);
-
-      // Calculate pacing
-      const pacingResult = calculatePacing({
-        monthlyIncome: user.monthlyIncome,
-        fixedExpenses: user.fixedExpenses,
-        totalSpentThisMonth: spentMonth,
-        totalSpentToday: spentToday,
-      });
-      setPacing(pacingResult);
-
-      // Category breakdown
-      const catTotals = await getMonthlySpentByCategory(userId, monthStart);
-      const allCategories = await categoriesCollection.query().fetch();
-      const breakdown: Array<{name: string; value: number; color: string}> = [];
-
-      for (const [catId, amount] of catTotals) {
-        const cat = allCategories.find(c => c.id === catId);
-        if (cat) {
-          breakdown.push({name: cat.name, value: amount, color: cat.color});
-        }
-      }
-      breakdown.sort((a, b) => b.value - a.value);
-      setCategoryBreakdown(breakdown.slice(0, 6));
-
-      // Recent transactions
-      const recent = await transactionsCollection
-        .query(
-          Q.where('user_id', userId),
-          Q.sortBy('date', Q.desc),
-          Q.take(5),
-        )
-        .fetch();
-
-      setRecentTransactions(
-        recent.map(t => ({
-          id: t.id,
-          merchant: t.merchant,
-          amount: t.amount,
-          type: t.type,
-          date: t.date,
-        })),
-      );
-    } catch (err) {
-      console.error('Dashboard load error:', err);
-    }
-  }, [userId]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  // Subscribe to transaction changes for reactive updates
-  useEffect(() => {
-    if (!userId) {return;}
-
-    const subscription = transactionsCollection
-      .query(Q.where('user_id', userId))
-      .observe()
-      .subscribe(() => {
-        loadData();
-      });
-
-    return () => subscription.unsubscribe();
-  }, [userId, loadData]);
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadData();
-    setRefreshing(false);
-  };
-
-  const balance = totalIncome - totalExpenses;
-
-  const statusColor =
-    pacing?.status === 'on_track'
-      ? Colors.success
-      : pacing?.status === 'warning'
-        ? Colors.warning
-        : Colors.danger;
-
-  const pieData =
-    categoryBreakdown.length > 0
-      ? categoryBreakdown.map(c => ({
-          value: c.value,
-          color: c.color,
-          text: c.name,
-        }))
-      : [{value: 1, color: Colors.shimmer, text: 'No data'}];
+  const {
+    userName,
+    totalIncome,
+    totalExpenses,
+    recentTransactions,
+    refreshing,
+    onRefresh,
+  } = useDashboardLogic();
 
   return (
-    <ScrollView
-      style={styles.container}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.primary} />
+    <View style={styles.container}>
+      {/* Pure black background */}
+      <View style={[StyleSheet.absoluteFill, {backgroundColor: '#000000'}]} />
 
-      {/* Hero Card */}
-      <LinearGradient
-        colors={[Colors.gradientStart, Colors.gradientEnd]}
-        style={styles.heroGradient}>
-        <View style={styles.heroHeader}>
-          <View>
-            <Text style={styles.greeting}>Hey {userName} 👋</Text>
-            <Text style={styles.dateText}>
-              {new Date().toLocaleDateString('en-IN', {
-                weekday: 'long',
-                month: 'long',
-                day: 'numeric',
-              })}
-            </Text>
-          </View>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight! + 20 : 60}}
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefresh}
+            tintColor={Colors.primary} 
+          />
+        }>
+        
+        {/* Header Region - Top Left Profile */}
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.profileIcon} onPress={() => navigation.navigate('Profile')}>
+            <Icon name="user" size={24} color={Colors.textPrimary} />
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.balanceSection}>
-          <Text style={styles.balanceLabel}>Current Balance</Text>
-          <Text style={styles.balanceAmount}>
-            ₹{balance.toLocaleString('en-IN', {maximumFractionDigits: 0})}
-          </Text>
-        </View>
-
-        <View style={styles.incomeExpenseRow}>
-          <View style={styles.metricBox}>
-            <Text style={styles.metricIcon}>↑</Text>
-            <View>
-              <Text style={styles.metricLabel}>Income</Text>
-              <Text style={styles.metricValue}>
-                ₹{totalIncome.toLocaleString('en-IN', {maximumFractionDigits: 0})}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.metricDivider} />
-          <View style={styles.metricBox}>
-            <Text style={styles.metricIcon}>↓</Text>
-            <View>
-              <Text style={styles.metricLabel}>Expenses</Text>
-              <Text style={styles.metricValue}>
-                ₹{totalExpenses.toLocaleString('en-IN', {maximumFractionDigits: 0})}
-              </Text>
-            </View>
-          </View>
-        </View>
-      </LinearGradient>
-
-      <View style={styles.body}>
-        {/* Daily Pacing Card */}
-        {pacing && (
-          <Card elevated style={styles.pacingCard}>
-            <View style={styles.pacingHeader}>
-              <View>
-                <Text style={styles.pacingTitle}>Daily Pace</Text>
-                <Text style={styles.pacingSubtitle}>
-                  {pacing.daysRemaining} days left this month
-                </Text>
+        <View style={styles.body}>
+          {/* Main Account Summary Card */}
+          <LiquidGlass borderRadius={32} style={styles.heroCardContainer}>
+            <View style={styles.heroCardContent}>
+              
+              {/* Top Row: Account Dropdown */}
+              <View style={styles.heroHeader}>
+                <View style={{flex: 1}} />
+                <TouchableOpacity style={styles.accountSelector}>
+                  <Text style={styles.accountSelectorText}>All accounts</Text>
+                  <Icon name="chevron-down" size={16} color={Colors.textPrimary} />
+                </TouchableOpacity>
               </View>
-              <View
-                style={[
-                  styles.statusBadge,
-                  {backgroundColor: statusColor + '20'},
-                ]}>
-                <Text style={[styles.statusText, {color: statusColor}]}>
-                  {pacing.status === 'on_track'
-                    ? '✓ On Track'
-                    : pacing.status === 'warning'
-                      ? '⚠ Caution'
-                      : '✗ Over Budget'}
-                </Text>
-              </View>
-            </View>
 
-            <Text style={styles.pacingAmount}>
-              ₹
-              {pacing.dailyAllowance.toLocaleString('en-IN', {
-                maximumFractionDigits: 0,
-              })}
-            </Text>
-            <Text style={styles.pacingLabel}>safe to spend today</Text>
-
-            {/* Progress bar */}
-            <View style={styles.progressContainer}>
-              <View style={styles.progressTrack}>
-                <LinearGradient
-                  colors={[statusColor, statusColor + '80']}
-                  start={{x: 0, y: 0}}
-                  end={{x: 1, y: 0}}
-                  style={[
-                    styles.progressFill,
-                    {width: `${Math.min(pacing.percentSpent, 100)}%`},
-                  ]}
-                />
-              </View>
-              <Text style={styles.progressText}>
-                {pacing.percentSpent.toFixed(0)}% of budget used
-              </Text>
-            </View>
-          </Card>
-        )}
-
-        {/* Spending Breakdown */}
-        <Card elevated title="Spending by Category" style={styles.chartCard}>
-          {categoryBreakdown.length > 0 ? (
-            <View style={styles.chartContainer}>
-              <PieChart
-                data={pieData}
-                donut
-                radius={70}
-                innerRadius={45}
-                innerCircleColor={Colors.surface}
-                centerLabelComponent={() => (
-                  <View style={styles.chartCenter}>
-                    <Text style={styles.chartCenterAmount}>
-                      ₹
-                      {categoryBreakdown
-                        .reduce((s, c) => s + c.value, 0)
-                        .toLocaleString('en-IN', {maximumFractionDigits: 0})}
-                    </Text>
-                    <Text style={styles.chartCenterLabel}>Total</Text>
-                  </View>
-                )}
-              />
-              <View style={styles.legendContainer}>
-                {categoryBreakdown.map((cat, idx) => (
-                  <View key={idx} style={styles.legendItem}>
-                    <View
-                      style={[styles.legendDot, {backgroundColor: cat.color}]}
-                    />
-                    <Text style={styles.legendName} numberOfLines={1}>
-                      {cat.name}
-                    </Text>
-                    <Text style={styles.legendAmount}>
-                      ₹{cat.value.toLocaleString('en-IN', {maximumFractionDigits: 0})}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          ) : (
-            <View style={styles.emptyChart}>
-              <Text style={styles.emptyChartIcon}>📊</Text>
-              <Text style={styles.emptyChartText}>
-                Add transactions to see your spending breakdown
-              </Text>
-            </View>
-          )}
-        </Card>
-
-        {/* Recent Transactions */}
-        <Card elevated title="Recent Transactions" style={styles.recentCard}>
-          {recentTransactions.length > 0 ? (
-            recentTransactions.map(txn => (
-              <TouchableOpacity
-                key={txn.id}
-                style={styles.txnItem}
-                activeOpacity={0.7}>
-                <View style={styles.txnLeft}>
-                  <View
-                    style={[
-                      styles.txnIcon,
-                      {
-                        backgroundColor:
-                          txn.type === 'income'
-                            ? Colors.incomeBg
-                            : Colors.expenseBg,
-                      },
-                    ]}>
-                    <Text style={styles.txnIconText}>
-                      {txn.type === 'income' ? '↑' : '↓'}
-                    </Text>
-                  </View>
-                  <View>
-                    <Text style={styles.txnMerchant}>{txn.merchant}</Text>
-                    <Text style={styles.txnDate}>
-                      {new Date(txn.date).toLocaleDateString('en-IN', {
-                        day: 'numeric',
-                        month: 'short',
-                      })}
-                    </Text>
-                  </View>
+              {/* Bottom Row: Spends & Income */}
+              <View style={styles.balanceSplit}>
+                <View style={[styles.balanceCol, {alignItems: 'flex-start'}]}>
+                  <Text style={styles.balanceLabel}>
+                    <Icon name="arrow-up-right" size={14} color={Colors.textSecondary} /> Spends
+                  </Text>
+                  <Text style={[styles.balanceAmount, {color: Colors.textPrimary}]}>
+                    ₹{totalExpenses.toLocaleString('en-IN', {maximumFractionDigits: 0})}
+                  </Text>
                 </View>
-                <Text
-                  style={[
-                    styles.txnAmount,
-                    {
-                      color:
-                        txn.type === 'income' ? Colors.income : Colors.expense,
-                    },
-                  ]}>
-                  {txn.type === 'income' ? '+' : '-'}₹
-                  {txn.amount.toLocaleString('en-IN', {maximumFractionDigits: 0})}
-                </Text>
-              </TouchableOpacity>
-            ))
-          ) : (
-            <View style={styles.emptyTxn}>
-              <Text style={styles.emptyTxnText}>
-                No transactions yet. Tap + to add one!
-              </Text>
+                
+                <View style={styles.balanceDivider} />
+                
+                <View style={[styles.balanceCol, {alignItems: 'flex-end'}]}>
+                  <Text style={styles.balanceLabel}>
+                    <Icon name="arrow-down-left" size={14} color={Colors.primary} /> Income
+                  </Text>
+                  <Text style={[styles.balanceAmount, {color: Colors.primary}]}>
+                    ₹{totalIncome.toLocaleString('en-IN', {maximumFractionDigits: 0})}
+                  </Text>
+                </View>
+              </View>
+              
             </View>
-          )}
+          </LiquidGlass>
 
-          {recentTransactions.length > 0 && (
-            <TouchableOpacity
-              style={styles.viewAll}
-              onPress={() => navigation.navigate('Transactions')}>
-              <Text style={styles.viewAllText}>View All →</Text>
-            </TouchableOpacity>
-          )}
-        </Card>
-      </View>
-    </ScrollView>
+          {/* Quick Access Card */}
+          <LiquidGlass borderRadius={28} style={styles.quickAccessContainer}>
+             <View style={styles.quickAccessGrid}>
+                {['Autopay', 'Loan', 'Transfers', 'More'].map((action, idx) => (
+                  <TouchableOpacity key={idx} style={styles.quickAccessItem}>
+                    <View style={styles.quickAccessCircle}>
+                      <Icon 
+                         name={idx === 0 ? 'refresh-cw' : idx === 1 ? 'briefcase' : idx === 2 ? 'send' : 'grid'} 
+                         size={20} 
+                         color={Colors.textPrimary} 
+                      />
+                    </View>
+                    <Text style={styles.quickAccessText}>{action}</Text>
+                  </TouchableOpacity>
+                ))}
+             </View>
+          </LiquidGlass>
+
+          {/* Recent Transactions */}
+          <View style={styles.recentSection}>
+            <Text style={styles.sectionTitle}>Transaction history</Text>
+            {recentTransactions.length > 0 ? (
+               recentTransactions.map((txn, idx) => (
+                 <LiquidGlass key={txn.id || idx} style={styles.txnCard} borderRadius={20} tintOpacity={0.25}>
+                   <View style={styles.txnLeft}>
+                     <View style={[styles.txnIcon, { backgroundColor: txn.type === 'income' ? Colors.incomeBg : Colors.surface }]}>
+                        <Icon name={txn.type === 'income' ? "arrow-down-left" : "arrow-up-right"} size={16} color={txn.type === 'income' ? Colors.income : Colors.textSecondary} />
+                     </View>
+                     <View>
+                       <Text style={styles.txnMerchant}>{txn.merchant}</Text>
+                       <Text style={styles.txnDate}>
+                         {new Date(txn.date).toLocaleDateString('en-IN', {
+                           day: 'numeric',
+                           month: 'short',
+                         })}
+                       </Text>
+                     </View>
+                   </View>
+                   <Text style={[styles.txnAmount, {color: txn.type === 'income' ? Colors.income : Colors.textPrimary}]}>
+                     {txn.type === 'income' ? '+' : '-'}₹{txn.amount.toLocaleString('en-IN', {maximumFractionDigits: 0})}
+                   </Text>
+                 </LiquidGlass>
+               ))
+            ) : (
+               <LiquidGlass style={styles.emptyCard} borderRadius={20}>
+                  <Text style={styles.emptyText}>No recent activity</Text>
+               </LiquidGlass>
+            )}
+            
+            {recentTransactions.length > 0 && (
+              <TouchableOpacity style={styles.viewAllButton} onPress={() => navigation.navigate('Transactions')}>
+                <Text style={styles.viewAllText}>View All</Text>
+                <Icon name="arrow-right" size={14} color={Colors.primary} />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: '#000000', 
   },
-  heroGradient: {
-    paddingTop: 60,
-    paddingBottom: 30,
-    paddingHorizontal: Spacing.xxl,
-    borderBottomLeftRadius: BorderRadius.xxl,
-    borderBottomRightRadius: BorderRadius.xxl,
+  header: {
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: Spacing.md,
+    zIndex: 10,
+    flexDirection: 'row',
+  },
+  profileIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(50, 50, 50, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  body: {
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: 110, // Room for floating tab bar
+    gap: Spacing.xl,
+  },
+  heroCardContainer: {},
+  heroCardContent: {
+    padding: Spacing.xl,
+    paddingTop: Spacing.lg,
   },
   heroHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.xxl,
-  },
-  greeting: {
-    fontSize: Typography.h3,
-    fontWeight: '700',
-    color: Colors.textOnPrimary,
-  },
-  dateText: {
-    fontSize: Typography.caption,
-    color: Colors.textOnPrimary,
-    opacity: 0.8,
-    marginTop: Spacing.xxs,
-  },
-  balanceSection: {
-    alignItems: 'center',
+    justifyContent: 'flex-end',
     marginBottom: Spacing.xl,
   },
+  accountSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xxs,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.round,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  accountSelectorText: {
+    color: Colors.textPrimary,
+    fontSize: Typography.caption,
+    fontWeight: '600',
+  },
+  balanceSplit: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  balanceCol: {
+    flex: 1,
+  },
   balanceLabel: {
+    color: Colors.textSecondary,
     fontSize: Typography.bodySmall,
-    color: Colors.textOnPrimary,
-    opacity: 0.85,
+    marginBottom: Spacing.xs,
+    fontWeight: '500',
   },
   balanceAmount: {
-    fontSize: 40,
+    fontSize: 26,
     fontWeight: '800',
-    color: Colors.textOnPrimary,
     letterSpacing: -1,
-    marginTop: Spacing.xs,
   },
-  incomeExpenseRow: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
-  },
-  metricBox: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    justifyContent: 'center',
-  },
-  metricIcon: {
-    fontSize: 18,
-    color: Colors.textOnPrimary,
-    fontWeight: '700',
-  },
-  metricLabel: {
-    fontSize: Typography.caption,
-    color: Colors.textOnPrimary,
-    opacity: 0.8,
-  },
-  metricValue: {
-    fontSize: Typography.body,
-    fontWeight: '700',
-    color: Colors.textOnPrimary,
-  },
-  metricDivider: {
-    width: 1,
-    backgroundColor: 'rgba(255,255,255,0.3)',
+  balanceDivider: {
+    width: StyleSheet.hairlineWidth,
+    height: 40,
+    backgroundColor: 'rgba(255,255,255,0.15)', 
     marginHorizontal: Spacing.md,
   },
-  body: {
+  quickAccessContainer: {
     padding: Spacing.lg,
-    gap: Spacing.lg,
-    paddingBottom: 100,
   },
-  pacingCard: {
-    marginTop: -15,
-  },
-  pacingHeader: {
+  quickAccessGrid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.md,
   },
-  pacingTitle: {
-    fontSize: Typography.h4,
-    fontWeight: '700',
+  quickAccessItem: {
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  quickAccessCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  quickAccessText: {
     color: Colors.textPrimary,
-  },
-  pacingSubtitle: {
     fontSize: Typography.caption,
+    fontWeight: '500',
+  },
+  recentSection: {
+    marginTop: Spacing.xs,
+  },
+  sectionTitle: {
     color: Colors.textSecondary,
-    marginTop: Spacing.xxs,
-  },
-  statusBadge: {
-    borderRadius: BorderRadius.round,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-  },
-  statusText: {
-    fontSize: Typography.caption,
+    fontSize: Typography.body,
     fontWeight: '600',
-  },
-  pacingAmount: {
-    fontSize: Typography.h1,
-    fontWeight: '800',
-    color: Colors.textPrimary,
-    letterSpacing: -1,
-  },
-  pacingLabel: {
-    fontSize: Typography.bodySmall,
-    color: Colors.textSecondary,
     marginBottom: Spacing.lg,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
-  progressContainer: {
-    gap: Spacing.sm,
-  },
-  progressTrack: {
-    height: 8,
-    backgroundColor: Colors.borderLight,
-    borderRadius: BorderRadius.round,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: BorderRadius.round,
-  },
-  progressText: {
-    fontSize: Typography.caption,
-    color: Colors.textTertiary,
-  },
-  chartCard: {},
-  chartContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xl,
-  },
-  chartCenter: {
-    alignItems: 'center',
-  },
-  chartCenterAmount: {
-    fontSize: Typography.bodySmall,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  chartCenterLabel: {
-    fontSize: Typography.tiny,
-    color: Colors.textTertiary,
-  },
-  legendContainer: {
-    flex: 1,
-    gap: Spacing.sm,
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  legendDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  legendName: {
-    flex: 1,
-    fontSize: Typography.caption,
-    color: Colors.textSecondary,
-  },
-  legendAmount: {
-    fontSize: Typography.caption,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-  },
-  emptyChart: {
-    alignItems: 'center',
-    paddingVertical: Spacing.xl,
-  },
-  emptyChartIcon: {
-    fontSize: 40,
-    marginBottom: Spacing.sm,
-  },
-  emptyChartText: {
-    fontSize: Typography.bodySmall,
-    color: Colors.textTertiary,
-    textAlign: 'center',
-  },
-  recentCard: {},
-  txnItem: {
+  txnCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
   },
   txnLeft: {
     flexDirection: 'row',
@@ -582,46 +279,45 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   txnIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: BorderRadius.sm,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  txnIconText: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
   txnMerchant: {
-    fontSize: Typography.bodySmall,
-    fontWeight: '600',
     color: Colors.textPrimary,
+    fontSize: Typography.body,
+    fontWeight: '600',
   },
   txnDate: {
+    color: Colors.textSecondary,
     fontSize: Typography.caption,
-    color: Colors.textTertiary,
-    marginTop: Spacing.xxs,
+    marginTop: 2,
   },
   txnAmount: {
     fontSize: Typography.body,
     fontWeight: '700',
   },
-  emptyTxn: {
+  emptyCard: {
+    padding: Spacing.xl,
     alignItems: 'center',
-    paddingVertical: Spacing.xl,
   },
-  emptyTxnText: {
-    fontSize: Typography.bodySmall,
+  emptyText: {
     color: Colors.textTertiary,
   },
-  viewAll: {
+  viewAllButton: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: Spacing.md,
+    justifyContent: 'center',
+    gap: Spacing.xxs,
+    marginTop: Spacing.sm,
+    paddingVertical: Spacing.sm,
   },
   viewAllText: {
-    fontSize: Typography.bodySmall,
-    fontWeight: '600',
     color: Colors.primary,
+    fontWeight: '600',
+    fontSize: Typography.bodySmall,
   },
 });
 
