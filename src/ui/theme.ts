@@ -4,52 +4,69 @@
  */
 
 export const Colors = {
-  // Primary palette
-  primary: '#6C5CE7',
-  primaryLight: '#A29BFE',
-  primaryDark: '#5A4BD1',
+  // Primary palette (User specifically requested Yellow accent)
+  primary: '#FFB700',      // Selective yellow
+  primaryLight: '#FFD000', // Jonquil
+  primaryDark: '#B8860B',  // Dark goldenrod
 
   // Accent
-  accent: '#00CEC9',
-  accentLight: '#81ECEC',
+  accent: '#FFD000',
+  accentLight: '#FFE566',
 
   // Semantic
-  income: '#00B894',
-  incomeBg: '#E8FBF5',
-  expense: '#E17055',
-  expenseBg: '#FDEDEA',
-  warning: '#FDCB6E',
-  warningBg: '#FEF9E7',
-  danger: '#D63031',
-  dangerBg: '#FDEDEE',
-  success: '#00B894',
-  successBg: '#E8FBF5',
+  income: '#FFB700',      // Yellow for income per new theme
+  incomeBg: 'rgba(255, 183, 0, 0.1)',
+  expense: '#FF5252',     // Soft red for expense 
+  expenseBg: 'rgba(255, 82, 82, 0.1)',
+  warning: '#FFD000',
+  warningBg: 'rgba(255, 208, 0, 0.1)',
+  danger: '#FF5252',
+  dangerBg: 'rgba(255, 82, 82, 0.1)',
+  success: '#FFB700',
+  successBg: 'rgba(255, 183, 0, 0.1)',
 
-  // Neutrals
-  background: '#F8F9FD',
-  surface: '#FFFFFF',
-  surfaceElevated: '#FFFFFF',
-  border: '#E8ECF4',
-  borderLight: '#F2F4F8',
+  // Neutrals (The Liquid Glass Base)
+  background: '#0F0F0F',     // Night
+  surface: '#2A2929',        // Jet
+  surfaceElevated: '#444342',// Black olive
+  border: 'rgba(255, 255, 255, 0.1)',
+  borderLight: 'rgba(255, 255, 255, 0.05)',
 
   // Text
-  textPrimary: '#1E272E',
-  textSecondary: '#636E72',
-  textTertiary: '#B2BEC3',
-  textOnPrimary: '#FFFFFF',
+  textPrimary: '#FFFFFF',
+  textSecondary: '#A0A0A0',
+  textTertiary: '#707070',
+  textOnPrimary: '#0F0F0F',  // Black text on yellow button
   textOnDark: '#FFFFFF',
 
-  // Gradients
-  gradientStart: '#6C5CE7',
-  gradientEnd: '#A29BFE',
-  gradientIncome: '#00B894',
-  gradientIncomeEnd: '#55EFC4',
-  gradientExpense: '#E17055',
-  gradientExpenseEnd: '#FAB1A0',
+  // Gradients (Frosted glass effects)
+  gradientStart: 'rgba(42, 41, 41, 0.8)',
+  gradientEnd: 'rgba(15, 15, 15, 0.9)',
+  gradientIncome: '#FFB700',
+  gradientIncomeEnd: '#FFD000',
+  gradientExpense: '#FF5252',
+  gradientExpenseEnd: '#FF8A80',
+
+  // Apple Pure Liquid Glass Tokens
+  glassBackground: 'rgba(50, 50, 50, 0.35)', // Adjusted for a slightly lighter milk-glass base 
+  glassBorderTop: 'rgba(255, 255, 255, 0.4)', // Much brighter top light hit
+  glassBorderLeft: 'rgba(255, 255, 255, 0.2)', // Brighter side light hit
+  glassBorderRight: 'rgba(0, 0, 0, 0.3)', // Dark bottom-right shadow bevel
+  glassBorderBottom: 'rgba(0, 0, 0, 0.6)', // Deep bottom shadow bevel
+  glassHighlightStart: 'rgba(255, 255, 255, 0.15)', // Stronger surface glow
+  glassHighlightEnd: 'rgba(0, 0, 0, 0.25)', // Fading into a dark shadow underneath
 
   // Dark overlay
-  overlay: 'rgba(0, 0, 0, 0.5)',
-  shimmer: '#E8ECF4',
+  overlay: 'rgba(0, 0, 0, 0.7)',
+  shimmer: '#2A2929',
+
+  // Background gradient
+  bgGradientTop: '#1A1A2E',     // Dark navy — adds depth at top
+  bgGradientBottom: '#000000',   // Pure black at bottom
+
+  // Transaction card (lightweight, no glass)
+  txnCardBg: 'rgba(255, 255, 255, 0.04)',
+  txnCardBorder: 'rgba(255, 255, 255, 0.08)',
 } as const;
 
 export const Typography = {
