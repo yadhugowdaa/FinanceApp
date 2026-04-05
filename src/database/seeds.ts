@@ -8,25 +8,21 @@ export interface DefaultCategory {
 }
 
 export const DEFAULT_CATEGORIES: DefaultCategory[] = [
-  // Expense categories
-  {name: 'Food & Dining', icon: 'restaurant', color: '#FF6B6B', type: 'expense'},
-  {name: 'Transport', icon: 'directions-car', color: '#4ECDC4', type: 'expense'},
-  {name: 'Shopping', icon: 'shopping-bag', color: '#45B7D1', type: 'expense'},
-  {name: 'Entertainment', icon: 'movie', color: '#96CEB4', type: 'expense'},
-  {name: 'Bills & Utilities', icon: 'receipt', color: '#FFEAA7', type: 'expense'},
-  {name: 'Health', icon: 'local-hospital', color: '#DDA0DD', type: 'expense'},
-  {name: 'Education', icon: 'school', color: '#98D8C8', type: 'expense'},
-  {name: 'Groceries', icon: 'shopping-cart', color: '#F7DC6F', type: 'expense'},
-  {name: 'Rent', icon: 'home', color: '#BB8FCE', type: 'expense'},
-  {name: 'Coffee', icon: 'local-cafe', color: '#D2B48C', type: 'expense'},
-  {name: 'Subscriptions', icon: 'subscriptions', color: '#87CEEB', type: 'expense'},
-  {name: 'Other', icon: 'more-horiz', color: '#BDC3C7', type: 'expense'},
-  // Income categories
-  {name: 'Salary', icon: 'account-balance', color: '#2ECC71', type: 'income'},
-  {name: 'Freelance', icon: 'work', color: '#27AE60', type: 'income'},
-  {name: 'Investment', icon: 'trending-up', color: '#1ABC9C', type: 'income'},
-  {name: 'Gift', icon: 'card-giftcard', color: '#E74C3C', type: 'income'},
-  {name: 'Other Income', icon: 'attach-money', color: '#3498DB', type: 'income'},
+  // Expense categories (Debits)
+  {name: 'Food', icon: 'restaurant', color: '#FFCFD9', type: 'expense'}, // Pastel Pink
+  {name: 'Transport', icon: 'directions-car', color: '#AECDF8', type: 'expense'}, // Soft Blue
+  {name: 'Housing & Utilities', icon: 'home', color: '#D8CAFF', type: 'expense'}, // Lavender
+  {name: 'Shopping', icon: 'shopping-bag', color: '#D8F2A8', type: 'expense'}, // Lime Green
+  {name: 'Entertainment', icon: 'movie', color: '#FFD27F', type: 'expense'}, // Mustard
+  {name: 'Health', icon: 'local-hospital', color: '#C3E8E3', type: 'expense'}, // Soft Cyan
+  {name: 'Investments', icon: 'trending-up', color: '#D6CEC3', type: 'expense'}, // Warm Gray
+  {name: 'Other', icon: 'more-horiz', color: '#D6CEC3', type: 'expense'}, // Warm Gray
+
+  // Income categories (Credits)
+  {name: 'Salary', icon: 'account-balance', color: '#D8F2A8', type: 'income'}, // Lime Green
+  {name: 'Investments', icon: 'trending-up', color: '#C3E8E3', type: 'income'}, // Soft Cyan
+  {name: 'Gifts & Refunds', icon: 'card-giftcard', color: '#FFCFD9', type: 'income'}, // Pastel Pink
+  {name: 'Other Income', icon: 'attach-money', color: '#FFD27F', type: 'income'}, // Mustard
 ];
 
 export async function seedDefaultCategories(): Promise<void> {

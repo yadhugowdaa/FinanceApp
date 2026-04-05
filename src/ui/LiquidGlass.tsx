@@ -1,14 +1,12 @@
 /**
- * LiquidGlass — GPU-accelerated Apple-style glass surface
+ * LiquidGlass — Apple-style transparent glass surface
  *
- * The glass rim is a SINGLE continuous thin RoundedRect stroke
- * that follows the entire card curvature. The gradient on the
- * stroke makes the top AND bottom arcs equally bright, while
- * the left/right sides are dim. No separate broken pieces.
+ * The glass is a very light tint over whatever is behind it.
+ * Background shows through naturally — no BlurView needed.
+ * Clean white edge highlights define the glass boundary.
  */
 import React from 'react';
 import {View, StyleSheet, ViewStyle, StyleProp, LayoutChangeEvent} from 'react-native';
-import {BlurView} from '@react-native-community/blur';
 import {
   Canvas,
   RoundedRect,
@@ -25,17 +23,16 @@ export interface LiquidGlassProps {
   style?: StyleProp<ViewStyle>;
   children?: React.ReactNode;
   borderRadius?: number;
-  blurAmount?: number;
   tintOpacity?: number;
   disableSpecular?: boolean;
+  useBlur?: boolean;
 }
 
 const LiquidGlass: React.FC<LiquidGlassProps> = ({
   style,
   children,
   borderRadius = BorderRadius.xl,
-  blurAmount = 28,
-  tintOpacity = 0.3,
+  tintOpacity = 0.08,
   disableSpecular = false,
 }) => {
   const [layout, setLayout] = React.useState({width: 0, height: 0});
@@ -47,88 +44,76 @@ const LiquidGlass: React.FC<LiquidGlassProps> = ({
 
   const {width: w, height: h} = layout;
   const r = borderRadius;
-  const clipRRect = rrect(rect(0, 0, w, h), r, r);
 
   return (
     <View
       style={[{borderRadius: r, overflow: 'hidden'}, style]}
       onLayout={onLayout}>
 
-      {/* ── Layer 1: Backdrop blur ── */}
-      <BlurView
-        style={StyleSheet.absoluteFill}
-        blurType="dark"
-        blurAmount={blurAmount}
-        overlayColor="transparent"
-        reducedTransparencyFallbackColor="#1C1C1E"
-      />
-
-      {/* ── Layer 2: Glass surface tint ── */}
+      {/* ── Layer 1: Very transparent white tint ──
+           This is the "glass". It's barely there — just enough to
+           distinguish it from the background behind. The background
+           gradient shows through naturally. */}
       <View
         style={[
           StyleSheet.absoluteFill,
-          {backgroundColor: `rgba(38, 38, 42, ${tintOpacity})`},
+          {backgroundColor: `rgba(255, 255, 255, ${tintOpacity})`},
         ]}
       />
 
-      {/* ── Layer 3: Skia glass effects ── */}
-      {w > 0 && h > 0 && (
+      {/* ── Layer 2: Skia edge effects ── */}
+      {w > 0 && h > 0 && !disableSpecular && (
         <Canvas
           style={[StyleSheet.absoluteFill, {zIndex: 2}]}
           pointerEvents="none">
+          <Group clip={rrect(rect(0, 0, w, h), r, r)}>
 
-          {!disableSpecular && (
-            <Group clip={clipRRect}>
+            {/* TOP HIGHLIGHT — bright light hitting the glass surface */}
+            <Rect x={0} y={0} width={w} height={h * 0.04}>
+              <SkiaGradient
+                start={vec(w * 0.5, 0)}
+                end={vec(w * 0.5, h * 0.04)}
+                colors={['rgba(255,255,255,0.25)', 'rgba(255,255,255,0)']}
+              />
+            </Rect>
 
-              {/* ── SINGLE RIM STROKE ──
-                   One continuous thin stroke around the entire rounded rect.
-                   Vertical gradient: bright top → dim sides → bright bottom.
-                   This naturally follows the curvature — the bright portion
-                   extends through the corner curves on both top and bottom.
-                   Both arcs look and behave the same.
-              */}
-              <RoundedRect
-                x={1}
-                y={0.5}
-                width={w - 2}
-                height={h - 2}
-                r={Math.max(r - 1, 0)}
-                style="stroke"
-                strokeWidth={2}>
-                <SkiaGradient
-                  start={vec(w * 0.5, 0)}
-                  end={vec(w * 0.5, h)}
-                  colors={[
-                    'rgba(255,255,255,0.60)',   // Top arc — bright
-                    'rgba(255,255,255,0.00)',   // Into top curves
-                    'rgba(255,255,255,0.00)',   // Left/right sides — dim
-                    'rgba(255,255,255,0.00)',   // Into bottom curves
-                    'rgba(255,255,255,0.60)',   // Bottom arc — equally bright
-                  ]}
-                  positions={[0, 0.12, 0.5, 0.88, 1]}
-                />
-              </RoundedRect>
+            {/* RIM STROKE — bright at top, dim at sides, subtle at bottom */}
+            <RoundedRect
+              x={0.5}
+              y={0.5}
+              width={w - 1}
+              height={h - 1}
+              r={Math.max(r - 0.5, 0)}
+              style="stroke"
+              strokeWidth={1}>
+              <SkiaGradient
+                start={vec(w * 0.5, 0)}
+                end={vec(w * 0.5, h)}
+                colors={[
+                  'rgba(255,255,255,0.45)',  // Top: bright specular
+                  'rgba(255,255,255,0.08)',  // Upper-mid: fading
+                  'rgba(255,255,255,0.04)',  // Mid: nearly invisible
+                  'rgba(255,255,255,0.08)',  // Lower-mid
+                  'rgba(255,255,255,0.20)',  // Bottom: subtle
+                ]}
+                positions={[0, 0.15, 0.5, 0.85, 1]}
+              />
+            </RoundedRect>
 
-              {/* ── SUBTLE BOTTOM DEPTH ──
-                   Gentle inner shadow at the bottom for convex depth.
-              */}
-              <Rect x={0} y={h * 0.7} width={w} height={h * 0.3}>
-                <SkiaGradient
-                  start={vec(w * 0.5, h * 0.7)}
-                  end={vec(w * 0.5, h)}
-                  colors={[
-                    'rgba(0,0,0,0)',
-                    'rgba(0,0,0,0.10)',
-                  ]}
-                />
-              </Rect>
+            {/* BOTTOM SHADOW — gives convex depth */}
+            <Rect x={0} y={h * 0.85} width={w} height={h * 0.15}>
+              <SkiaGradient
+                start={vec(w * 0.5, h * 0.85)}
+                end={vec(w * 0.5, h)}
+                colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.10)']}
+              />
+            </Rect>
 
-            </Group>
-          )}
+          </Group>
         </Canvas>
       )}
 
-      {/* ── Layer 4: Content ── */}
+      {/* ── Layer 3: Content ── */}
       <View style={{position: 'relative', zIndex: 5}}>
         {children}
       </View>

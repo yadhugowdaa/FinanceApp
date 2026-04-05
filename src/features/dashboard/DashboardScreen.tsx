@@ -8,26 +8,32 @@ import {
   StatusBar,
   RefreshControl,
   Platform,
+  Image,
 } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
 import {Colors, Typography, Spacing, BorderRadius, LiquidGlass} from '../../ui';
 import {useDashboardLogic} from './useDashboardLogic';
 import Icon from 'react-native-vector-icons/Feather';
-
+import Animated, {FadeInDown} from 'react-native-reanimated';
+import {getCategoryDoodle} from '../../utils/CategoryImages';
 
 const DashboardScreen: React.FC<{navigation: any}> = ({navigation}) => {
   const {
     userName,
     totalIncome,
     totalExpenses,
+    balance,
+    categoryBreakdown,
     recentTransactions,
     refreshing,
     onRefresh,
   } = useDashboardLogic();
 
+  const spendRatio = totalIncome > 0 ? Math.min(totalExpenses / totalIncome, 1) : 0;
+  const spendPercent = Math.round(spendRatio * 100);
+
   return (
     <View style={styles.container}>
-      {/* Pure black background */}
-      <View style={[StyleSheet.absoluteFill, {backgroundColor: '#000000'}]} />
 
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
@@ -43,108 +49,168 @@ const DashboardScreen: React.FC<{navigation: any}> = ({navigation}) => {
         }>
         
         {/* Header Region - Top Left Profile */}
-        <View style={styles.header}>
+        <Animated.View
+          entering={FadeInDown.duration(500).springify()}
+          style={styles.header}>
           <TouchableOpacity style={styles.profileIcon} onPress={() => navigation.navigate('Profile')}>
             <Icon name="user" size={24} color={Colors.textPrimary} />
           </TouchableOpacity>
-        </View>
+        </Animated.View>
 
         <View style={styles.body}>
-          {/* Main Account Summary Card */}
-          <LiquidGlass borderRadius={32} style={styles.heroCardContainer}>
-            <View style={styles.heroCardContent}>
-              
-              {/* Top Row: Account Dropdown */}
-              <View style={styles.heroHeader}>
-                <View style={{flex: 1}} />
-                <TouchableOpacity style={styles.accountSelector}>
-                  <Text style={styles.accountSelectorText}>All accounts</Text>
-                  <Icon name="chevron-down" size={16} color={Colors.textPrimary} />
-                </TouchableOpacity>
-              </View>
+          {/* Main Account Summary Card — LiquidGlass */}
+          <Animated.View entering={FadeInDown.delay(100).duration(600).springify()}>
+            <LiquidGlass borderRadius={32} style={styles.heroCardContainer} useBlur={true}>
+              <View style={styles.heroCardContent}>
+                
+                {/* Top Row: Balance + Account Dropdown */}
+                <View style={styles.heroHeader}>
+                  <View>
+                    <Text style={styles.balanceLabel}>Balance</Text>
+                    <Text style={[styles.balanceAmount, {color: balance >= 0 ? '#00E676' : '#FF3C3C'}]}>
+                      {'\u20B9'}{Math.abs(balance).toLocaleString('en-IN', {maximumFractionDigits: 0})}
+                    </Text>
+                  </View>
+                  <TouchableOpacity style={styles.accountSelector}>
+                    <Text style={styles.accountSelectorText}>All accounts</Text>
+                    <Icon name="chevron-down" size={16} color={Colors.textPrimary} />
+                  </TouchableOpacity>
+                </View>
 
-              {/* Bottom Row: Spends & Income */}
-              <View style={styles.balanceSplit}>
-                <View style={[styles.balanceCol, {alignItems: 'flex-start'}]}>
-                  <Text style={styles.balanceLabel}>
-                    <Icon name="arrow-up-right" size={14} color={Colors.textSecondary} /> Spends
-                  </Text>
-                  <Text style={[styles.balanceAmount, {color: Colors.textPrimary}]}>
-                    ₹{totalExpenses.toLocaleString('en-IN', {maximumFractionDigits: 0})}
-                  </Text>
+                {/* Spending Progress Bar */}
+                <View>
+                  <View style={styles.progressHeader}>
+                    <Text style={styles.progressLabel}>{spendPercent}% spent</Text>
+                    <Text style={styles.progressLabel}>
+                      {'\u20B9'}{totalExpenses.toLocaleString('en-IN', {maximumFractionDigits: 0})} of {'\u20B9'}{totalIncome.toLocaleString('en-IN', {maximumFractionDigits: 0})}
+                    </Text>
+                  </View>
+                  <View style={styles.progressTrack}>
+                    <View
+                      style={[
+                        styles.progressFill,
+                        {
+                          width: `${spendPercent}%`,
+                          backgroundColor: spendPercent > 80 ? '#FF3C3C' : spendPercent > 50 ? '#FFB020' : '#00E676',
+                        },
+                      ]}
+                    />
+                  </View>
+                </View>
+
+                {/* Bottom Row: Spends & Income */}
+                <View style={styles.balanceSplit}>
+                  <View style={[styles.balanceCol, {alignItems: 'flex-start'}]}>
+                    <Text style={styles.statLabel}>
+                      <Icon name="arrow-up-right" size={12} color="#FF3C3C" /> Spends
+                    </Text>
+                    <Text style={[styles.statAmount, {color: '#FF3C3C'}]}>
+                      {'\u20B9'}{totalExpenses.toLocaleString('en-IN', {maximumFractionDigits: 0})}
+                    </Text>
+                  </View>
+                  
+                  <View style={styles.balanceDivider} />
+                  
+                  <View style={[styles.balanceCol, {alignItems: 'flex-end'}]}>
+                    <Text style={styles.statLabel}>
+                      <Icon name="arrow-down-left" size={12} color="#00E676" /> Income
+                    </Text>
+                    <Text style={[styles.statAmount, {color: '#00E676'}]}>
+                      {'\u20B9'}{totalIncome.toLocaleString('en-IN', {maximumFractionDigits: 0})}
+                    </Text>
+                  </View>
                 </View>
                 
-                <View style={styles.balanceDivider} />
-                
-                <View style={[styles.balanceCol, {alignItems: 'flex-end'}]}>
-                  <Text style={styles.balanceLabel}>
-                    <Icon name="arrow-down-left" size={14} color={Colors.primary} /> Income
-                  </Text>
-                  <Text style={[styles.balanceAmount, {color: Colors.primary}]}>
-                    ₹{totalIncome.toLocaleString('en-IN', {maximumFractionDigits: 0})}
-                  </Text>
-                </View>
               </View>
-              
-            </View>
-          </LiquidGlass>
+            </LiquidGlass>
+          </Animated.View>
 
-          {/* Quick Access Card */}
-          <LiquidGlass borderRadius={28} style={styles.quickAccessContainer}>
-             <View style={styles.quickAccessGrid}>
+          {/* Quick Access Card — Glossy Yellow */}
+          <Animated.View entering={FadeInDown.delay(200).duration(600).springify()}>
+            <LinearGradient
+              colors={['#FFB700', '#E5A400', '#CC9200']}
+              start={{x: 0, y: 0}}
+              end={{x: 1, y: 1}}
+              style={styles.quickAccessGradient}>
+              <View style={styles.quickAccessGrid}>
                 {['Autopay', 'Loan', 'Transfers', 'More'].map((action, idx) => (
                   <TouchableOpacity key={idx} style={styles.quickAccessItem}>
                     <View style={styles.quickAccessCircle}>
                       <Icon 
-                         name={idx === 0 ? 'refresh-cw' : idx === 1 ? 'briefcase' : idx === 2 ? 'send' : 'grid'} 
-                         size={20} 
-                         color={Colors.textPrimary} 
+                        name={idx === 0 ? 'refresh-cw' : idx === 1 ? 'briefcase' : idx === 2 ? 'send' : 'grid'} 
+                        size={20} 
+                        color="#1A1400" 
                       />
                     </View>
                     <Text style={styles.quickAccessText}>{action}</Text>
                   </TouchableOpacity>
                 ))}
-             </View>
-          </LiquidGlass>
+              </View>
+            </LinearGradient>
+          </Animated.View>
 
-          {/* Recent Transactions */}
-          <View style={styles.recentSection}>
+          {/* Transaction History */}
+          <Animated.View
+            entering={FadeInDown.delay(300).duration(600).springify()}
+            style={styles.recentSection}>
             <Text style={styles.sectionTitle}>Transaction history</Text>
             {recentTransactions.length > 0 ? (
-               recentTransactions.map((txn, idx) => (
-                 <LiquidGlass key={txn.id || idx} style={styles.txnCard} borderRadius={20} tintOpacity={0.25}>
-                   <View style={styles.txnLeft}>
-                     <View style={[styles.txnIcon, { backgroundColor: txn.type === 'income' ? Colors.incomeBg : Colors.surface }]}>
-                        <Icon name={txn.type === 'income' ? "arrow-down-left" : "arrow-up-right"} size={16} color={txn.type === 'income' ? Colors.income : Colors.textSecondary} />
-                     </View>
-                     <View>
-                       <Text style={styles.txnMerchant}>{txn.merchant}</Text>
-                       <Text style={styles.txnDate}>
-                         {new Date(txn.date).toLocaleDateString('en-IN', {
-                           day: 'numeric',
-                           month: 'short',
-                         })}
-                       </Text>
-                     </View>
-                   </View>
-                   <Text style={[styles.txnAmount, {color: txn.type === 'income' ? Colors.income : Colors.textPrimary}]}>
-                     {txn.type === 'income' ? '+' : '-'}₹{txn.amount.toLocaleString('en-IN', {maximumFractionDigits: 0})}
-                   </Text>
-                 </LiquidGlass>
-               ))
+              recentTransactions.map((txn, idx) => (
+                <Animated.View
+                  key={txn.id || idx}
+                  entering={FadeInDown.delay(350 + idx * 80).duration(500).springify()}>
+                  <View style={[
+                    styles.txnCard, 
+                    {
+                      backgroundColor: txn.categoryColor,
+                      zIndex: recentTransactions.length - idx,
+                      transform: [{rotate: idx % 2 === 0 ? '-2deg' : '2deg'}],
+                    }
+                  ]}>
+                    <View style={styles.txnCardInner}>
+                      <View style={styles.txnLeft}>
+                      <View style={styles.txnIcon}>
+                        <Icon
+                          name={txn.type === 'income' ? 'arrow-down-left' : 'arrow-up-right'}
+                          size={18}
+                          color="#000000"
+                        />
+                      </View>
+                      <View>
+                        <Text style={styles.txnMerchant}>{txn.merchant}</Text>
+                        <Text style={styles.txnDate}>
+                          {new Date(txn.date).toLocaleDateString('en-IN', {
+                            day: 'numeric',
+                            month: 'short',
+                          })}
+                        </Text>
+                      </View>
+                    </View>
+                    
+                    {/* The Doodle - dynamically rendered based on category */}
+                    {/* Uncomment this block when you add your own transparent images!
+                    <View style={styles.doodleContainer}>
+                      <Image 
+                        source={getCategoryDoodle(txn.categoryName)} 
+                        style={styles.doodleImage} 
+                      />
+                    </View>
+                    */}
+
+                    <Text style={styles.txnAmount}>
+                      {txn.type === 'income' ? '+' : '-'}
+                      {'\u20B9'}{txn.amount.toLocaleString('en-IN', {maximumFractionDigits: 0})}
+                    </Text>
+                    </View>
+                  </View>
+                </Animated.View>
+              ))
             ) : (
-               <LiquidGlass style={styles.emptyCard} borderRadius={20}>
-                  <Text style={styles.emptyText}>No recent activity</Text>
-               </LiquidGlass>
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyText}>No recent activity</Text>
+              </View>
             )}
-            
-            {recentTransactions.length > 0 && (
-              <TouchableOpacity style={styles.viewAllButton} onPress={() => navigation.navigate('Transactions')}>
-                <Text style={styles.viewAllText}>View All</Text>
-                <Icon name="arrow-right" size={14} color={Colors.primary} />
-              </TouchableOpacity>
-            )}
-          </View>
+          </Animated.View>
         </View>
       </ScrollView>
     </View>
@@ -154,58 +220,54 @@ const DashboardScreen: React.FC<{navigation: any}> = ({navigation}) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000', 
+    backgroundColor: '#000000',
   },
   header: {
     paddingHorizontal: Spacing.xl,
-    paddingBottom: Spacing.md,
-    zIndex: 10,
-    flexDirection: 'row',
+    marginBottom: Spacing.md,
   },
   profileIcon: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(50, 50, 50, 0.6)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   body: {
     paddingHorizontal: Spacing.xl,
-    paddingBottom: 110, // Room for floating tab bar
-    gap: Spacing.xl,
+    paddingBottom: 120,
   },
-  heroCardContainer: {},
-  heroCardContent: {
+  heroCardContainer: {
     padding: Spacing.xl,
-    paddingTop: Spacing.lg,
+    marginBottom: Spacing.lg,
+  },
+  heroCardContent: {
+    gap: Spacing.lg,
   },
   heroHeader: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginBottom: Spacing.xl,
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   accountSelector: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xxs,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    gap: Spacing.xs,
+    backgroundColor: 'rgba(255,255,255,0.08)',
     paddingHorizontal: Spacing.md,
-    paddingVertical: 8,
+    paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.round,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.15)',
   },
   accountSelectorText: {
     color: Colors.textPrimary,
-    fontSize: Typography.caption,
-    fontWeight: '600',
+    fontSize: Typography.bodySmall,
+    fontWeight: '500',
   },
   balanceSplit: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
   },
   balanceCol: {
@@ -218,18 +280,85 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   balanceAmount: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '800',
     letterSpacing: -1,
   },
   balanceDivider: {
     width: StyleSheet.hairlineWidth,
-    height: 40,
-    backgroundColor: 'rgba(255,255,255,0.15)', 
+    height: 32,
+    backgroundColor: 'rgba(255,255,255,0.15)',
     marginHorizontal: Spacing.md,
   },
-  quickAccessContainer: {
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  progressLabel: {
+    color: Colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  progressTrack: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: 6,
+    borderRadius: 3,
+  },
+  statLabel: {
+    color: Colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  statAmount: {
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: -0.5,
+  },
+  catSection: {
     padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+  },
+  catRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: Spacing.sm,
+  },
+  catBarTrack: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    overflow: 'hidden',
+  },
+  catBarFill: {
+    height: 8,
+    borderRadius: 4,
+  },
+  catName: {
+    color: Colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '500',
+    width: 70,
+    textAlign: 'right',
+  },
+  catAmount: {
+    color: Colors.textPrimary,
+    fontSize: 12,
+    fontWeight: '600',
+    width: 60,
+    textAlign: 'right',
+  },
+  quickAccessGradient: {
+    borderRadius: 28,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
   },
   quickAccessGrid: {
     flexDirection: 'row',
@@ -244,16 +373,14 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: 'rgba(0,0,0,0.12)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.15)',
   },
   quickAccessText: {
-    color: Colors.textPrimary,
+    color: '#1A1400',
     fontSize: Typography.caption,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   recentSection: {
     marginTop: Spacing.xs,
@@ -267,57 +394,77 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   txnCard: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: 24,
+    marginBottom: -16, // Stack them on top of each other!
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#000000',
+    overflow: 'hidden',
+  },
+  txnCardInner: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
   },
   txnLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.md,
+    zIndex: 2,
   },
   txnIcon: {
     width: 44,
     height: 44,
     borderRadius: 22,
+    backgroundColor: 'rgba(0,0,0,0.06)',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#000',
   },
   txnMerchant: {
-    color: Colors.textPrimary,
+    color: '#000000',
     fontSize: Typography.body,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   txnDate: {
-    color: Colors.textSecondary,
+    color: 'rgba(0,0,0,0.6)',
     fontSize: Typography.caption,
+    fontWeight: '600',
     marginTop: 2,
   },
   txnAmount: {
+    color: '#000000',
     fontSize: Typography.body,
-    fontWeight: '700',
+    fontWeight: '800',
+    zIndex: 2,
+  },
+  doodleContainer: {
+    position: 'absolute',
+    right: 30,
+    top: -15,
+    bottom: -15,
+    width: 90,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  doodleImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'contain',
   },
   emptyCard: {
     padding: Spacing.xl,
     alignItems: 'center',
+    backgroundColor: Colors.txnCardBg,
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.txnCardBorder,
   },
   emptyText: {
     color: Colors.textTertiary,
-  },
-  viewAllButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.xxs,
-    marginTop: Spacing.sm,
-    paddingVertical: Spacing.sm,
-  },
-  viewAllText: {
-    color: Colors.primary,
-    fontWeight: '600',
-    fontSize: Typography.bodySmall,
   },
 });
 

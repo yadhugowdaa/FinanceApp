@@ -17,7 +17,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 
-import {Colors, LiquidGlass} from '../ui';
+import {Colors} from '../ui';
 import {useAppStore} from '../store/useAppStore';
 
 // Screens
@@ -42,13 +42,13 @@ const TAB_ICONS: Record<string, string> = {
 // ── Layout constants ──
 const CIRCLE_SIZE = 52;
 const BAR_HEIGHT = 70;
-const NOTCH_WIDTH = 80;        // Width of the U-shape indent (wider than circle for gap)
-const NOTCH_DEPTH = 28;        // How deep the U curves (creates gap below circle)
-const ICON_LIFT = 38;           // How far selected icon rises (centers it in circle)
-const JUMP_HEIGHT = 60;         // How high the circle jumps during transition
+const NOTCH_WIDTH = 76;
+const NOTCH_DEPTH = 28;
+const ICON_LIFT = 38;
+const JUMP_HEIGHT = 60;
 const BOTTOM_PADDING = Platform.OS === 'ios' ? 20 : 10;
 
-// ── Build SVG path for bar with U-notch ──
+// ── Build SVG path for bar with smooth U-notch ──
 function buildBarPath(w: number, h: number, notchCX: number): string {
   const nr = NOTCH_WIDTH / 2;
   const nd = NOTCH_DEPTH;
@@ -58,9 +58,7 @@ function buildBarPath(w: number, h: number, notchCX: number): string {
   return [
     `M 0,0`,
     `L ${nl},0`,
-    // Smooth curve into the notch (left side)
     `C ${nl + nr * 0.45},0 ${notchCX - nr * 0.8},${nd} ${notchCX},${nd}`,
-    // Smooth curve out of the notch (right side)
     `C ${notchCX + nr * 0.8},${nd} ${nrx - nr * 0.45},0 ${nrx},0`,
     `L ${w},0`,
     `L ${w},${h}`,
@@ -123,20 +121,16 @@ interface AnimatedTabBarProps extends BottomTabBarProps {
 
 function AnimatedTabBar({state, navigation, openSheet}: AnimatedTabBarProps) {
   const [barWidth, setBarWidth] = useState(0);
+  const [notchCX, setNotchCX] = useState(0);
   const numTabs = state.routes.length;
   const tabWidth = barWidth / numTabs;
 
-  // Animated values for the yellow circle
+  // Animated values for the glass circle
   const circleX = useSharedValue(0);
   const circleY = useSharedValue(0);
 
-  // Notch position (state-based — updates instantly, hidden by the jump animation)
-  const [notchCX, setNotchCX] = useState(0);
-
-  // Previous index to detect direction for the arc
   const prevIndexRef = useRef(state.index);
 
-  // ── On tab change: trigger jump animation ──
   useEffect(() => {
     if (barWidth <= 0) return;
 
@@ -144,46 +138,26 @@ function AnimatedTabBar({state, navigation, openSheet}: AnimatedTabBarProps) {
     const newNotchCX = state.index * tabWidth + tabWidth / 2;
 
     if (prevIndexRef.current === state.index) {
-      // First render — snap instantly
       circleX.value = newX;
       setNotchCX(newNotchCX);
     } else {
-      // ── JUMP animation ──
-      // 1. Circle jumps UP
-      // 2. While airborne, slides horizontally to new tab
-      // 3. Falls DOWN onto new position with bounce
-
-      // Y: jump up → wait → fall with bounce
+      // Jump animation
       circleY.value = withSequence(
-        withTiming(-JUMP_HEIGHT, {
-          duration: 220,
-          easing: Easing.out(Easing.cubic),
-        }),
-        withDelay(
-          80,
-          withSpring(0, {
-            damping: 8,
-            stiffness: 200,
-            mass: 0.6,
-          }),
-        ),
+        withTiming(-JUMP_HEIGHT, {duration: 220, easing: Easing.out(Easing.cubic)}),
+        withDelay(80, withSpring(0, {damping: 8, stiffness: 200, mass: 0.6})),
       );
 
-      // X: smooth horizontal slide
       circleX.value = withTiming(newX, {
         duration: 380,
         easing: Easing.bezier(0.25, 0.1, 0.25, 1),
       });
 
-      // Notch: update instantly (circle is in the air, user doesn't see snap)
-      // Small delay so notch moves while circle is at peak
+      // Notch moves while circle is in the air
       setTimeout(() => setNotchCX(newNotchCX), 120);
-
       prevIndexRef.current = state.index;
     }
   }, [state.index, tabWidth, barWidth, circleX, circleY]);
 
-  // Circle animated style (translateX + translateY for jump)
   const circleStyle = useAnimatedStyle(() => ({
     transform: [
       {translateX: circleX.value},
@@ -194,46 +168,44 @@ function AnimatedTabBar({state, navigation, openSheet}: AnimatedTabBarProps) {
   const handleLayout = useCallback((e: any) => {
     const w = e.nativeEvent.layout.width;
     setBarWidth(w);
-    // Set initial notch position
     const initialCX = state.index * (w / numTabs) + (w / numTabs) / 2;
     setNotchCX(initialCX);
-    // Set initial circle position
     circleX.value = state.index * (w / numTabs) + ((w / numTabs) - CIRCLE_SIZE) / 2;
   }, [state.index, numTabs, circleX]);
 
-  // Circle vertical position: centered on the lifted icon
-  // Icon normal center = BAR_HEIGHT/2 = 35. Lifted = 35 - ICON_LIFT = -3
-  // Circle center should match → circleTop = -3 - CIRCLE_SIZE/2 = -29
   const circleTop = BAR_HEIGHT / 2 - ICON_LIFT - CIRCLE_SIZE / 2;
 
-  // SVG bar path with notch
+  // SVG bar path with smooth U-notch
   const barPath = barWidth > 0
     ? buildBarPath(barWidth, BAR_HEIGHT + BOTTOM_PADDING, notchCX)
     : '';
 
   return (
     <View style={styles.tabBarContainer} onLayout={handleLayout}>
-      {/* ── Bar background with U-notch ── */}
+      {/* ── Bar background: SVG U-notch shape ── */}
       {barWidth > 0 && (
-        <Svg
-          width={barWidth}
-          height={BAR_HEIGHT + BOTTOM_PADDING}
-          style={StyleSheet.absoluteFill}>
-          <SvgPath
-            d={barPath}
-            fill="rgba(28, 28, 30, 0.85)"
-          />
-          {/* Subtle top border line (follows the notch shape) */}
-          <SvgPath
-            d={barPath}
-            fill="none"
-            stroke="rgba(255,255,255,0.08)"
-            strokeWidth={0.5}
-          />
-        </Svg>
+        <View style={StyleSheet.absoluteFill}>
+          {/* SVG bar shape with notch + fill */}
+          <Svg
+            width={barWidth}
+            height={BAR_HEIGHT + BOTTOM_PADDING}
+            style={StyleSheet.absoluteFill}>
+            <SvgPath
+              d={barPath}
+              fill="rgba(255, 255, 255, 0.06)"
+            />
+            {/* Top border line following the notch curve */}
+            <SvgPath
+              d={barPath}
+              fill="none"
+              stroke="rgba(255,255,255,0.30)"
+              strokeWidth={1}
+            />
+          </Svg>
+        </View>
       )}
 
-      {/* ── Animated yellow circle ── */}
+      {/* ── Glass circle (selected tab indicator) ── */}
       {barWidth > 0 && (
         <Animated.View
           style={[
@@ -367,11 +339,13 @@ const styles = StyleSheet.create({
     width: CIRCLE_SIZE,
     height: CIRCLE_SIZE,
     borderRadius: CIRCLE_SIZE / 2,
-    backgroundColor: Colors.primary,
-    elevation: 10,
-    shadowColor: Colors.primary,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+    elevation: 8,
+    shadowColor: '#000',
     shadowOffset: {width: 0, height: 4},
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.35,
     shadowRadius: 10,
   },
   tabRow: {

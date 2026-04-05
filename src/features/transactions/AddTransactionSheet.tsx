@@ -211,6 +211,10 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
       Alert.alert('Error', 'Please enter a merchant name');
       return;
     }
+    if (!selectedCategoryId) {
+      Alert.alert('Error', 'Please select a category');
+      return;
+    }
     if (!userId) {return;}
 
     setLoading(true);

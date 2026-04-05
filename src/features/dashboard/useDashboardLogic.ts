@@ -27,6 +27,8 @@ export type RecentTransactionItem = {
   amount: number;
   type: string;
   date: Date;
+  categoryName: string;
+  categoryColor: string;
 };
 
 export function useDashboardLogic() {
@@ -80,17 +82,24 @@ export function useDashboardLogic() {
       setCategoryBreakdown(breakdown.slice(0, 6));
 
       const recent = await transactionsCollection
-        .query(Q.where('user_id', userId), Q.sortBy('date', Q.desc), Q.take(5))
+        .query(Q.where('user_id', userId), Q.sortBy('date', Q.desc))
         .fetch();
 
+      const catMap = new Map(allCategories.map(c => [c.id, c]));
+
       setRecentTransactions(
-        recent.map(t => ({
-          id: t.id,
-          merchant: t.merchant,
-          amount: t.amount,
-          type: t.type,
-          date: t.date,
-        })),
+        recent.map(t => {
+          const cat = catMap.get(t.categoryId); // use t.categoryId instead of category_id if that's the relation key
+          return {
+            id: t.id,
+            merchant: t.merchant,
+            amount: t.amount,
+            type: t.type,
+            date: t.date,
+            categoryName: cat?.name || 'Other',
+            categoryColor: cat?.color || '#D6CEC3',
+          };
+        }),
       );
     } catch (err) {
       console.error('Dashboard load error:', err);

@@ -59,6 +59,14 @@ export const Colors = {
   // Dark overlay
   overlay: 'rgba(0, 0, 0, 0.7)',
   shimmer: '#2A2929',
+
+  // Background gradient
+  bgGradientTop: '#1A1A2E',     // Dark navy — adds depth at top
+  bgGradientBottom: '#000000',   // Pure black at bottom
+
+  // Transaction card (lightweight, no glass)
+  txnCardBg: 'rgba(255, 255, 255, 0.04)',
+  txnCardBorder: 'rgba(255, 255, 255, 0.08)',
 } as const;
 
 export const Typography = {
