@@ -19,7 +19,7 @@ import type Category from '../../database/models/Category';
 type FilterType = 'all' | 'expense' | 'income';
 
 const TransactionsScreen: React.FC<{navigation: any}> = ({navigation}) => {
-  const {userId} = useAppStore();
+  const {userId, currencySymbol} = useAppStore();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Map<string, Category>>(new Map());
   const [searchQuery, setSearchQuery] = useState('');
@@ -119,7 +119,7 @@ const TransactionsScreen: React.FC<{navigation: any}> = ({navigation}) => {
               styles.txnAmount,
               {color: item.type === 'income' ? Colors.income : Colors.expense},
             ]}>
-            {item.type === 'income' ? '+' : '-'}₹
+            {item.type === 'income' ? '+' : '-'}{currencySymbol}
             {item.amount.toLocaleString('en-IN', {maximumFractionDigits: 0})}
           </Text>
           {item.notes ? (

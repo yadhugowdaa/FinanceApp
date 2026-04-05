@@ -8,7 +8,10 @@ import {
 } from 'react-native';
 import Slider from '@react-native-community/slider';
 import LinearGradient from 'react-native-linear-gradient';
-import {Card, Colors, Typography, Spacing, BorderRadius, EmptyState} from '../../ui';
+import {Colors, Typography, Spacing, BorderRadius, EmptyState, LiquidGlass} from '../../ui';
+import Icon from 'react-native-vector-icons/Feather';
+import Svg, {Path, Defs, LinearGradient as SvgLinearGradient, Stop} from 'react-native-svg';
+import Animated, {FadeInDown} from 'react-native-reanimated';
 import {useAppStore} from '../../store/useAppStore';
 import {
   getMonthlySpentByCategory,
@@ -24,8 +27,45 @@ interface CategorySlider {
   reduction: number; // 0-100
 }
 
+const DominoVisualizer = ({ monthlySavings, color, currencySymbol }: { monthlySavings: number, color: string, currencySymbol: string }) => {
+  if (monthlySavings <= 0) return null;
+
+  const r = 0.01 / 12;
+  const n = 120; // 10 years
+  const futureValue = monthlySavings * ((Math.pow(1 + r, n) - 1) / r);
+
+  const svgWidth = 300; 
+  const svgHeight = 60;
+  const pathData = `M 0,${svgHeight} C ${svgWidth * 0.4},${svgHeight} ${svgWidth * 0.7},${svgHeight * 0.5} ${svgWidth},10 L ${svgWidth},${svgHeight} Z`;
+  const strokePath = `M 0,${svgHeight} C ${svgWidth * 0.4},${svgHeight} ${svgWidth * 0.7},${svgHeight * 0.5} ${svgWidth},10`;
+
+  return (
+    <Animated.View entering={FadeInDown.duration(400)} style={styles.dominoContainer}>
+      <View style={styles.dominoTextWrap}>
+        <Text style={styles.dominoTitle}>The Domino Effect</Text>
+        <Text style={styles.dominoSubtitle}>Invested at 1% for 10 years</Text>
+        <Text style={[styles.dominoValue, { color }]}>
+          {currencySymbol}{futureValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+        </Text>
+      </View>
+      <View style={styles.dominoChart}>
+         <Svg width="100%" height={svgHeight} preserveAspectRatio="none" viewBox={`0 0 ${svgWidth} ${svgHeight}`}>
+            <Defs>
+              <SvgLinearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0" stopColor={color} stopOpacity="0.4" />
+                <Stop offset="1" stopColor={color} stopOpacity="0.0" />
+              </SvgLinearGradient>
+            </Defs>
+            <Path d={pathData} fill="url(#grad)" />
+            <Path d={strokePath} fill="none" stroke={color} strokeWidth="2" />
+         </Svg>
+      </View>
+    </Animated.View>
+  );
+};
+
 const InsightsScreen: React.FC = () => {
-  const {userId} = useAppStore();
+  const {userId, activeAccountId, currencySymbol} = useAppStore();
   const [sliders, setSliders] = useState<CategorySlider[]>([]);
   const [monthlyIncome, setMonthlyIncome] = useState(0);
   const [fixedExpenses, setFixedExpenses] = useState(0);
@@ -43,10 +83,10 @@ const InsightsScreen: React.FC = () => {
       setFixedExpenses(user.fixedExpenses);
 
       const monthStart = getMonthStartTimestamp();
-      const spent = await getTotalSpentThisMonth(userId, monthStart);
+      const spent = await getTotalSpentThisMonth(userId, monthStart, activeAccountId);
       setTotalSpent(spent);
 
-      const catTotals = await getMonthlySpentByCategory(userId, monthStart);
+      const catTotals = await getMonthlySpentByCategory(userId, monthStart, activeAccountId);
       const allCategories = await categoriesCollection.query().fetch();
 
       const sliderData: CategorySlider[] = [];
@@ -67,10 +107,13 @@ const InsightsScreen: React.FC = () => {
       sliderData.sort((a, b) => b.total - a.total);
       setSliders(sliderData);
       setTopCategory(maxCat || null);
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.message?.includes('not found')) {
+        useAppStore.getState().clearAuth();
+      }
       console.error('Insights load error:', err);
     }
-  }, [userId]);
+  }, [userId, activeAccountId]);
 
   useEffect(() => {
     loadData();
@@ -115,12 +158,12 @@ const InsightsScreen: React.FC = () => {
   if (sliders.length === 0) {
     return (
       <View style={styles.container}>
-        <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
+        <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
         <View style={styles.header}>
           <Text style={styles.title}>Insights</Text>
         </View>
         <EmptyState
-          icon="🔮"
+          icon="activity"
           title="No Data Yet"
           description="Start adding transactions to unlock powerful spending insights and the What-If Simulator."
         />
@@ -132,7 +175,7 @@ const InsightsScreen: React.FC = () => {
     <ScrollView
       style={styles.container}
       showsVerticalScrollIndicator={false}>
-      <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
 
       <View style={styles.header}>
         <Text style={styles.title}>Insights</Text>
@@ -143,20 +186,24 @@ const InsightsScreen: React.FC = () => {
 
       {/* Quick stats */}
       <View style={styles.statsRow}>
-        <Card elevated style={styles.statCard}>
-          <Text style={styles.statEmoji}>🏆</Text>
+        <LiquidGlass borderRadius={20} useBlur={true} style={styles.statCard}>
+          <Icon name="award" color={Colors.primary} size={24} style={styles.statIcon} />
           <Text style={styles.statLabel}>Top Category</Text>
           <Text style={styles.statValue}>{topCategory}</Text>
-        </Card>
-        <Card elevated style={styles.statCard}>
-          <Text style={styles.statEmoji}>📊</Text>
+        </LiquidGlass>
+        <LiquidGlass borderRadius={20} useBlur={true} style={styles.statCard}>
+          <Icon name="pie-chart" color={Colors.primary} size={24} style={styles.statIcon} />
           <Text style={styles.statLabel}>Categories</Text>
           <Text style={styles.statValue}>{sliders.length} active</Text>
-        </Card>
+        </LiquidGlass>
       </View>
 
       {/* What-If Simulator */}
-      <Card elevated title="🔮 What-If Simulator" style={styles.simulatorCard}>
+      <LiquidGlass borderRadius={24} useBlur={true} style={styles.simulatorCard}>
+        <View style={styles.cardHeader}>
+          <Icon name="sliders" size={20} color={Colors.primary} />
+          <Text style={styles.cardTitle}>What-If Simulator</Text>
+        </View>
         <Text style={styles.simulatorDesc}>
           Drag the sliders to see how reducing spending in each category would
           affect your daily allowance.
@@ -168,10 +215,10 @@ const InsightsScreen: React.FC = () => {
           style={styles.savingsBox}>
           <Text style={styles.savingsLabel}>Projected Savings</Text>
           <Text style={styles.savingsAmount}>
-            ₹{totalSaved.toLocaleString('en-IN', {maximumFractionDigits: 0})}
+            {currencySymbol}{totalSaved.toLocaleString('en-IN', {maximumFractionDigits: 0})}
           </Text>
           <Text style={styles.savingsDaily}>
-            New daily allowance: ₹
+            New daily allowance: {currencySymbol}
             {newDailyAllowance.toLocaleString('en-IN', {maximumFractionDigits: 0})}
           </Text>
         </LinearGradient>
@@ -190,7 +237,7 @@ const InsightsScreen: React.FC = () => {
                 <Text style={styles.sliderCatName}>{s.category.name}</Text>
               </View>
               <Text style={styles.sliderSpent}>
-                ₹{s.total.toLocaleString('en-IN', {maximumFractionDigits: 0})}
+                {currencySymbol}{s.total.toLocaleString('en-IN', {maximumFractionDigits: 0})}
               </Text>
             </View>
 
@@ -212,19 +259,30 @@ const InsightsScreen: React.FC = () => {
               </Text>
               {s.reduction > 0 && (
                 <Text style={styles.sliderSave}>
-                  Save ₹
+                  Save {currencySymbol}
                   {((s.total * s.reduction) / 100).toLocaleString('en-IN', {
                     maximumFractionDigits: 0,
                   })}
                 </Text>
               )}
             </View>
+
+            {/* DOMINO EFFECT */}
+            <DominoVisualizer 
+               monthlySavings={(s.total * s.reduction) / 100} 
+               color={s.category.color}
+               currencySymbol={currencySymbol}
+            />
           </View>
         ))}
-      </Card>
+      </LiquidGlass>
 
       {/* Category breakdown */}
-      <Card elevated title="Spending Breakdown" style={styles.breakdownCard}>
+      <LiquidGlass borderRadius={24} useBlur={true} style={styles.breakdownCard}>
+        <View style={styles.cardHeader}>
+          <Icon name="bar-chart-2" size={20} color={Colors.primary} />
+          <Text style={styles.cardTitle}>Spending Breakdown</Text>
+        </View>
         {sliders.map(s => {
           const percentage =
             totalSpent > 0 ? (s.total / totalSpent) * 100 : 0;
@@ -241,7 +299,7 @@ const InsightsScreen: React.FC = () => {
                   <Text style={styles.breakdownName}>{s.category.name}</Text>
                 </View>
                 <Text style={styles.breakdownAmount}>
-                  ₹{s.total.toLocaleString('en-IN', {maximumFractionDigits: 0})} ({percentage.toFixed(0)}%)
+                  {currencySymbol}{s.total.toLocaleString('en-IN', {maximumFractionDigits: 0})} ({percentage.toFixed(0)}%)
                 </Text>
               </View>
               <View style={styles.breakdownBar}>
@@ -258,7 +316,7 @@ const InsightsScreen: React.FC = () => {
             </View>
           );
         })}
-      </Card>
+      </LiquidGlass>
 
       <View style={styles.bottomSpacer} />
     </ScrollView>
@@ -295,9 +353,9 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     alignItems: 'center',
+    padding: Spacing.lg,
   },
-  statEmoji: {
-    fontSize: 28,
+  statIcon: {
     marginBottom: Spacing.sm,
   },
   statLabel: {
@@ -313,6 +371,19 @@ const styles = StyleSheet.create({
   simulatorCard: {
     marginHorizontal: Spacing.lg,
     marginBottom: Spacing.lg,
+    padding: Spacing.xl,
+    paddingBottom: Spacing.md,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  cardTitle: {
+    fontSize: Typography.body,
+    fontWeight: '700',
+    color: Colors.textPrimary,
   },
   simulatorDesc: {
     fontSize: Typography.bodySmall,
@@ -396,6 +467,7 @@ const styles = StyleSheet.create({
   breakdownCard: {
     marginHorizontal: Spacing.lg,
     marginBottom: Spacing.lg,
+    padding: Spacing.xl,
   },
   breakdownItem: {
     marginBottom: Spacing.lg,
@@ -433,6 +505,38 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: 100,
+  },
+  dominoContainer: {
+    marginTop: Spacing.lg,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    borderRadius: BorderRadius.md,
+    overflow: 'hidden',
+  },
+  dominoTextWrap: {
+    padding: Spacing.md,
+    paddingBottom: 0,
+    zIndex: 2,
+  },
+  dominoTitle: {
+    fontSize: Typography.bodySmall,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  dominoSubtitle: {
+    fontSize: Typography.tiny,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
+  },
+  dominoValue: {
+    fontSize: Typography.h3,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+  dominoChart: {
+    width: '100%',
+    height: 60,
+    marginTop: -20,
+    zIndex: 1,
   },
 });
 

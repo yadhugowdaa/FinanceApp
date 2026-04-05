@@ -13,12 +13,14 @@ interface AuthState {
   phoneNumber: string | null;
   isAuthenticated: boolean;
   isOnboarded: boolean;
+  currencySymbol: string;
 }
 
 interface UIState {
   isAddSheetOpen: boolean;
   selectedTab: 'home' | 'transactions' | 'insights' | 'settings';
   isLoading: boolean;
+  activeAccountId: string | undefined;
 }
 
 interface AppState extends AuthState, UIState {
@@ -31,6 +33,8 @@ interface AppState extends AuthState, UIState {
   setAddSheetOpen: (open: boolean) => void;
   setSelectedTab: (tab: UIState['selectedTab']) => void;
   setLoading: (loading: boolean) => void;
+  setCurrencySymbol: (symbol: string) => void;
+  setActiveAccountId: (accountId: string | undefined) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -41,11 +45,13 @@ export const useAppStore = create<AppState>()(
       phoneNumber: null,
       isAuthenticated: false,
       isOnboarded: false,
+      currencySymbol: '₹',
 
       // Initial UI state
       isAddSheetOpen: false,
       selectedTab: 'home',
       isLoading: false,
+      activeAccountId: undefined,
 
       // Auth actions
       setAuth: (userId, phoneNumber) =>
@@ -65,6 +71,8 @@ export const useAppStore = create<AppState>()(
       setAddSheetOpen: open => set({isAddSheetOpen: open}),
       setSelectedTab: tab => set({selectedTab: tab}),
       setLoading: loading => set({isLoading: loading}),
+      setCurrencySymbol: symbol => set({currencySymbol: symbol}),
+      setActiveAccountId: accountId => set({activeAccountId: accountId}),
     }),
     {
       name: 'finpace-auth-storage',
@@ -75,6 +83,7 @@ export const useAppStore = create<AppState>()(
         phoneNumber: state.phoneNumber,
         isAuthenticated: state.isAuthenticated,
         isOnboarded: state.isOnboarded,
+        currencySymbol: state.currencySymbol,
       }),
     },
   ),

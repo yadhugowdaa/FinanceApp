@@ -1,6 +1,6 @@
 import React, {useRef, useCallback, useState, useEffect} from 'react';
 import {StyleSheet, TouchableOpacity, View, Platform} from 'react-native';
-import {NavigationContainer} from '@react-navigation/native';
+import {NavigationContainer, useNavigation} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {createBottomTabNavigator, BottomTabBarProps} from '@react-navigation/bottom-tabs';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
@@ -27,6 +27,7 @@ import DashboardScreen from '../features/dashboard/DashboardScreen';
 import InsightsScreen from '../features/insights/InsightsScreen';
 import SettingsScreen from '../features/settings/SettingsScreen';
 import AddTransactionSheet from '../features/transactions/AddTransactionSheet';
+import NewsScreen from '../features/news/NewsScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -117,9 +118,10 @@ function TabIcon({
 // ── Animated Tab Bar ──
 interface AnimatedTabBarProps extends BottomTabBarProps {
   openSheet: () => void;
+  closeSheet: () => void;
 }
 
-function AnimatedTabBar({state, navigation, openSheet}: AnimatedTabBarProps) {
+function AnimatedTabBar({state, navigation, openSheet, closeSheet}: AnimatedTabBarProps) {
   const [barWidth, setBarWidth] = useState(0);
   const [notchCX, setNotchCX] = useState(0);
   const numTabs = state.routes.length;
@@ -230,6 +232,10 @@ function AnimatedTabBar({state, navigation, openSheet}: AnimatedTabBarProps) {
           const iconName = TAB_ICONS[route.name] || 'circle';
 
           const onPress = () => {
+            if (route.name !== 'Add') {
+              closeSheet();
+            }
+
             const event = navigation.emit({
               type: 'tabPress',
               target: route.key,
@@ -274,8 +280,11 @@ function AnimatedTabBar({state, navigation, openSheet}: AnimatedTabBarProps) {
 function MainTabs() {
   const bottomSheetRef = useRef<BottomSheet>(null);
   const [sheetKey, setSheetKey] = useState(0);
+  const navigation = useNavigation<any>();
+  const programmaticClose = useRef(false);
 
   const openSheet = useCallback(() => {
+    programmaticClose.current = false;
     if (bottomSheetRef.current) {
       bottomSheetRef.current.snapToIndex(0);
     } else {
@@ -286,19 +295,33 @@ function MainTabs() {
     }
   }, []);
 
+  const closeSheet = useCallback(() => {
+    programmaticClose.current = true;
+    bottomSheetRef.current?.close();
+  }, []);
+
   return (
     <>
       <Tab.Navigator
-        tabBar={props => <AnimatedTabBar {...props} openSheet={openSheet} />}
+        tabBar={props => <AnimatedTabBar {...props} openSheet={openSheet} closeSheet={closeSheet} />}
         screenOptions={{headerShown: false}}>
         <Tab.Screen name="Home" component={DashboardScreen} />
-        <Tab.Screen name="News" component={EmptyScreen} />
+        <Tab.Screen name="News" component={NewsScreen} />
         <Tab.Screen name="Add" component={EmptyScreen} />
         <Tab.Screen name="Insights" component={InsightsScreen} />
         <Tab.Screen name="Profile" component={SettingsScreen} />
       </Tab.Navigator>
 
-      <AddTransactionSheet key={sheetKey} bottomSheetRef={bottomSheetRef} />
+      <AddTransactionSheet 
+        key={sheetKey} 
+        bottomSheetRef={bottomSheetRef} 
+        onClose={() => {
+          if (!programmaticClose.current) {
+            navigation.navigate('Main', { screen: 'Home' });
+          }
+          programmaticClose.current = false;
+        }} 
+      />
     </>
   );
 }

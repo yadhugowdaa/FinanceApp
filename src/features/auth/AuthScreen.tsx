@@ -13,6 +13,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import {Button, Colors, Typography, Spacing, BorderRadius} from '../../ui';
 import {useAppStore} from '../../store/useAppStore';
 import {database, usersCollection} from '../../database';
+import {seedDefaultAccount} from '../../database/seeds';
 
 const OTP_LENGTH = 4;
 
@@ -119,7 +120,7 @@ const AuthScreen: React.FC = () => {
         // Create new user
         let newUserId = '';
         await database.write(async () => {
-          const newUser = await usersCollection.create(user => {
+          const newUser = await usersCollection.create((user: any) => {
             user.phoneNumber = phoneNumber;
             user.currency = '₹';
             user.isOnboarded = false;
@@ -128,6 +129,10 @@ const AuthScreen: React.FC = () => {
           });
           newUserId = newUser.id;
         });
+
+        // Seed default cash account for this user outside the user write batch
+        await seedDefaultAccount(newUserId);
+
         setAuth(newUserId, phoneNumber);
         setOnboarded(false);
       }

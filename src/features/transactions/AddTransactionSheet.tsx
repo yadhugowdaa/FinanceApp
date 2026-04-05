@@ -5,31 +5,36 @@ import {
   TextInput,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
   Alert,
   ActivityIndicator,
   PermissionsAndroid,
   Platform,
 } from 'react-native';
+import {ScrollView} from 'react-native-gesture-handler';
 import BottomSheet, {BottomSheetScrollView} from '@gorhom/bottom-sheet';
 import {launchCamera, launchImageLibrary} from 'react-native-image-picker';
-import {Button, Colors, Typography, Spacing, BorderRadius} from '../../ui';
+import {Button, Colors, Typography, Spacing, BorderRadius, LiquidGlass} from '../../ui';
+import Icon from 'react-native-vector-icons/Feather';
 import {useAppStore} from '../../store/useAppStore';
 import {categoriesCollection} from '../../database';
 import {createTransaction} from '../../services/TransactionService';
 import {parseTransactionText} from '../../services/ParserService';
 import {recognizeTextFromImage} from '../../services/MLKitService';
 import type Category from '../../database/models/Category';
+import type Account from '../../database/models/Account';
 import type {TransactionSource} from '../../database/models/Transaction';
+import {accountsCollection} from '../../database';
 
-type InputMode = 'manual' | 'paste' | 'ocr';
+type InputMode = 'manual' | 'ocr';
 
 interface AddTransactionSheetProps {
   bottomSheetRef: React.RefObject<BottomSheet | null>;
+  onClose?: () => void;
 }
 
 const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   bottomSheetRef,
+  onClose,
 }) => {
   const {userId} = useAppStore();
   const [inputMode, setInputMode] = useState<InputMode>('manual');
@@ -39,13 +44,14 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   const [type, setType] = useState<'expense' | 'income'>('expense');
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
   const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedAccountId, setSelectedAccountId] = useState('');
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [pasteText, setPasteText] = useState('');
   const [loading, setLoading] = useState(false);
   const [confidence, setConfidence] = useState<number | null>(null);
   const [ocrProcessing, setOcrProcessing] = useState(false);
-  const [ocrText, setOcrText] = useState('');
 
-  const snapPoints = ['85%'];
+  const snapPoints = ['95%'];
 
   const handleScanReceipt = async () => {
     try {
@@ -89,7 +95,6 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
 
       // Run on-device ML Kit text recognition
       const ocrResult = await recognizeTextFromImage(imagePath);
-      setOcrText(ocrResult.rawText);
 
       // Use the already-parsed transaction from MLKitService
       const parsed = ocrResult.parsedTransaction;
@@ -139,7 +144,6 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
 
       // Run on-device ML Kit text recognition
       const ocrResult = await recognizeTextFromImage(imagePath);
-      setOcrText(ocrResult.rawText);
 
       // Use the already-parsed transaction from MLKitService
       const parsed = ocrResult.parsedTransaction;
@@ -167,16 +171,31 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   };
 
   useEffect(() => {
-    loadCategories();
-  }, []);
+    const categoriesSub = categoriesCollection
+      .query()
+      .observe()
+      .subscribe(cats => {
+        setCategories(cats);
+        if (cats.length > 0) {
+          setSelectedCategoryId(prev => prev ? prev : cats[0].id);
+        }
+      });
 
-  const loadCategories = async () => {
-    const cats = await categoriesCollection.query().fetch();
-    setCategories(cats);
-    if (cats.length > 0 && !selectedCategoryId) {
-      setSelectedCategoryId(cats[0].id);
-    }
-  };
+    const accountsSub = accountsCollection
+      .query()
+      .observe()
+      .subscribe(accs => {
+        setAccounts(accs);
+        if (accs.length > 0) {
+          setSelectedAccountId(prev => prev ? prev : (accs.find(a => a.isDefault)?.id || accs[0].id));
+        }
+      });
+
+    return () => {
+      categoriesSub.unsubscribe();
+      accountsSub.unsubscribe();
+    };
+  }, []);
 
   const resetForm = () => {
     setAmount('');
@@ -221,11 +240,7 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
 
     try {
       const source: TransactionSource =
-        inputMode === 'paste'
-          ? 'sms'
-          : inputMode === 'ocr'
-            ? 'ocr'
-            : 'manual';
+        inputMode === 'ocr' ? 'ocr' : 'manual';
 
       await createTransaction({
         amount: parseFloat(amount),
@@ -236,6 +251,7 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
         source,
         categoryId: selectedCategoryId,
         userId,
+        accountId: selectedAccountId || undefined,
       });
 
       resetForm();
@@ -250,9 +266,8 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
   const filteredCategories = categories.filter(c => c.type === type);
 
   const modes: {label: string; value: InputMode; icon: string}[] = [
-    {label: 'Manual', value: 'manual', icon: '✏️'},
-    {label: 'Paste SMS', value: 'paste', icon: '📋'},
-    {label: 'Scan Receipt', value: 'ocr', icon: '📷'},
+    {label: 'Manual', value: 'manual', icon: 'edit-3'},
+    {label: 'Scan Receipt', value: 'ocr', icon: 'camera'},
   ];
 
   return (
@@ -262,7 +277,12 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
       snapPoints={snapPoints}
       enablePanDownToClose
       backgroundStyle={styles.sheetBg}
-      handleIndicatorStyle={styles.handleIndicator}>
+      handleIndicatorStyle={styles.handleIndicator}
+      onChange={(idx) => {
+        if (idx === -1) {
+          onClose?.();
+        }
+      }}>
       <BottomSheetScrollView
         contentContainerStyle={styles.sheetContent}
         keyboardShouldPersistTaps="handled">
@@ -278,7 +298,7 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
                 inputMode === m.value && styles.modeTabActive,
               ]}
               onPress={() => setInputMode(m.value)}>
-              <Text style={styles.modeIcon}>{m.icon}</Text>
+              <Icon name={m.icon} size={20} color={inputMode === m.value ? Colors.primary : Colors.textSecondary} />
               <Text
                 style={[
                   styles.modeLabel,
@@ -289,34 +309,6 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
             </TouchableOpacity>
           ))}
         </View>
-
-        {/* Paste SMS mode */}
-        {inputMode === 'paste' && (
-          <View style={styles.pasteSection}>
-            <TextInput
-              style={styles.pasteInput}
-              placeholder="Paste your bank SMS or notification here..."
-              placeholderTextColor={Colors.textTertiary}
-              multiline
-              numberOfLines={4}
-              value={pasteText}
-              onChangeText={setPasteText}
-            />
-            <Button
-              title="Parse Message"
-              onPress={handlePasteAndParse}
-              variant="secondary"
-              size="sm"
-            />
-            {confidence !== null && (
-              <View style={styles.confidenceBadge}>
-                <Text style={styles.confidenceText}>
-                  Parser confidence: {(confidence * 100).toFixed(0)}%
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
 
         {/* OCR mode */}
         {inputMode === 'ocr' && (
@@ -329,11 +321,11 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
                </View>
             ) : (
               <View style={styles.ocrButtonGroup}>
-                <TouchableOpacity
+              <TouchableOpacity
                   style={[styles.ocrButton, { flex: 1, marginRight: Spacing.sm }]}
                   onPress={handleScanReceipt}
                   activeOpacity={0.8}>
-                  <Text style={styles.ocrIcon}>📷</Text>
+                  <Icon name="camera" size={32} color={Colors.textPrimary} />
                   <Text style={styles.ocrText}>Camera</Text>
                   <Text style={styles.ocrSubtext}>Take a photo</Text>
                 </TouchableOpacity>
@@ -342,18 +334,12 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
                   style={[styles.ocrButton, { flex: 1, marginLeft: Spacing.sm }]}
                   onPress={handleGalleryPick}
                   activeOpacity={0.8}>
-                  <Text style={styles.ocrIcon}>🖼️</Text>
+                  <Icon name="image" size={32} color={Colors.textPrimary} />
                   <Text style={styles.ocrText}>Gallery</Text>
                   <Text style={styles.ocrSubtext}>Pick screenshot</Text>
                 </TouchableOpacity>
               </View>
             )}
-            {ocrText ? (
-              <View style={styles.ocrResultBox}>
-                <Text style={styles.ocrResultLabel}>Recognized Text:</Text>
-                <Text style={styles.ocrResultText} numberOfLines={5}>{ocrText}</Text>
-              </View>
-            ) : null}
           </View>
         )}
 
@@ -365,12 +351,13 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
               type === 'expense' && styles.typeExpenseActive,
             ]}
             onPress={() => setType('expense')}>
+            <Icon name="arrow-up-right" size={14} color={type === 'expense' ? '#FF3C3C' : Colors.textSecondary} />
             <Text
               style={[
                 styles.typeText,
                 type === 'expense' && styles.typeTextActive,
               ]}>
-              💸 Expense
+              Expense
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -379,12 +366,13 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
               type === 'income' && styles.typeIncomeActive,
             ]}
             onPress={() => setType('income')}>
+            <Icon name="arrow-down-left" size={14} color={type === 'income' ? '#00E676' : Colors.textSecondary} />
             <Text
               style={[
                 styles.typeText,
                 type === 'income' && styles.typeTextActive,
               ]}>
-              💰 Income
+              Income
             </Text>
           </TouchableOpacity>
         </View>
@@ -419,23 +407,55 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
 
         {/* Category */}
         <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>Category</Text>
+          <Text style={styles.fieldLabel}>Category *</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            style={styles.catScroll}>
+            nestedScrollEnabled={true}
+            contentContainerStyle={styles.catScrollContent}>
             {filteredCategories.map(cat => (
               <TouchableOpacity
                 key={cat.id}
+                activeOpacity={0.7}
                 style={[
                   styles.catChip,
-                  selectedCategoryId === cat.id && {
-                    backgroundColor: cat.color + '30',
-                    borderColor: cat.color,
-                  },
+                  selectedCategoryId === cat.id && styles.catChipSelected,
                 ]}
                 onPress={() => setSelectedCategoryId(cat.id)}>
-                <Text style={styles.catChipText}>{cat.name}</Text>
+                <Text style={[
+                  styles.catChipText,
+                  selectedCategoryId === cat.id && styles.catChipTextSelected,
+                ]}>{cat.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* Account */}
+        <View style={[styles.fieldGroup, {zIndex: 10}]}>
+          <Text style={styles.fieldLabel}>Account</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            nestedScrollEnabled={true}
+            contentContainerStyle={styles.catScrollContent}>
+            {accounts.map(acc => (
+              <TouchableOpacity
+                key={acc.id}
+                activeOpacity={0.7}
+                style={[
+                  styles.catChip,
+                  selectedAccountId === acc.id && styles.catChipSelected,
+                ]}
+                onPress={() => setSelectedAccountId(acc.id)}>
+                <View style={[
+                  styles.catDot, 
+                  {backgroundColor: acc.color, marginRight: Spacing.xs}
+                ]} />
+                <Text style={[
+                  styles.catChipText,
+                  selectedAccountId === acc.id && styles.catChipTextSelected,
+                ]}>{acc.name}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -456,13 +476,15 @@ const AddTransactionSheet: React.FC<AddTransactionSheetProps> = ({
         </View>
 
         {/* Save button */}
-        <Button
-          title="Save Transaction"
-          onPress={handleSave}
-          loading={loading}
-          fullWidth
-          size="lg"
-        />
+        <TouchableOpacity onPress={handleSave} activeOpacity={0.8} disabled={loading}>
+          <LiquidGlass borderRadius={16} style={styles.saveBtn} useBlur={true}>
+            {loading ? (
+              <ActivityIndicator size="small" color={Colors.primary} />
+            ) : (
+              <Text style={styles.saveBtnText}>Save Transaction</Text>
+            )}
+          </LiquidGlass>
+        </TouchableOpacity>
       </BottomSheetScrollView>
     </BottomSheet>
   );
@@ -479,7 +501,7 @@ const styles = StyleSheet.create({
   },
   sheetContent: {
     padding: Spacing.xxl,
-    paddingBottom: Spacing.huge,
+    paddingBottom: 120,
   },
   sheetTitle: {
     fontSize: Typography.h2,
@@ -506,14 +528,11 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
     backgroundColor: Colors.primaryLight + '15',
   },
-  modeIcon: {
-    fontSize: 20,
-    marginBottom: Spacing.xxs,
-  },
   modeLabel: {
     fontSize: Typography.tiny,
     fontWeight: '600',
     color: Colors.textSecondary,
+    marginTop: 4,
   },
   modeLabelActive: {
     color: Colors.primary,
@@ -573,10 +592,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 140,
   },
-  ocrIcon: {
-    fontSize: 48,
-    marginBottom: Spacing.sm,
-  },
   ocrText: {
     fontSize: Typography.body,
     fontWeight: '600',
@@ -599,6 +614,9 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     alignItems: 'center',
     borderRadius: BorderRadius.sm,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
   },
   typeExpenseActive: {
     backgroundColor: Colors.expenseBg,
@@ -652,41 +670,47 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  catScroll: {
-    flexGrow: 0,
+  catScrollContent: {
+    gap: Spacing.sm,
+    paddingRight: Spacing.lg,
   },
   catChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.round,
-    backgroundColor: Colors.background,
+    paddingVertical: Spacing.sm + 2,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1.5,
-    borderColor: Colors.border,
-    marginRight: Spacing.sm,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  catDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  catChipSelected: {
+    backgroundColor: Colors.primary + '20',
+    borderColor: Colors.primary,
   },
   catChipText: {
     fontSize: Typography.caption,
     fontWeight: '600',
-    color: Colors.textPrimary,
-  },
-  ocrResultBox: {
-    backgroundColor: Colors.background,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.lg,
-    marginTop: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  ocrResultLabel: {
-    fontSize: Typography.caption,
-    fontWeight: '600',
     color: Colors.textSecondary,
-    marginBottom: Spacing.sm,
   },
-  ocrResultText: {
-    fontSize: Typography.bodySmall,
+  catChipTextSelected: {
+    color: Colors.primary,
+  },
+  saveBtn: {
+    paddingVertical: Spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveBtnText: {
+    fontSize: Typography.body,
+    fontWeight: '700',
     color: Colors.textPrimary,
-    lineHeight: 20,
+    letterSpacing: 0.3,
   },
 });
 

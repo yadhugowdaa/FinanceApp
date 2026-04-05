@@ -1,4 +1,5 @@
-import {database, categoriesCollection} from './index';
+import {database, categoriesCollection, accountsCollection} from './index';
+import {getBankByCode} from '../data/banks';
 
 export interface DefaultCategory {
   name: string;
@@ -43,5 +44,26 @@ export async function seedDefaultCategories(): Promise<void> {
       }),
     );
     await database.batch(...batch);
+  });
+}
+
+export async function seedDefaultAccount(userId: string): Promise<void> {
+  const existing = await accountsCollection.query().fetchCount();
+  if (existing > 0) {
+    return; // Already seeded
+  }
+
+  const cashBank = getBankByCode('cash');
+
+  await database.write(async () => {
+    await accountsCollection.create(record => {
+      record.name = cashBank.name;
+      record.bankCode = cashBank.code;
+      record.accountNumber = '';
+      record.color = cashBank.color;
+      record.icon = cashBank.icon;
+      record.userId = userId;
+      record.isDefault = true;
+    });
   });
 }

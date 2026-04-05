@@ -31,7 +31,7 @@ export type RecentTransactionItem = {
   categoryColor: string;
 };
 
-export function useDashboardLogic() {
+export function useDashboardLogic(activeAccountId?: string) {
   const {userId} = useAppStore();
   const [pacing, setPacing] = useState<PacingResult | null>(null);
   const [totalIncome, setTotalIncome] = useState(0);
@@ -52,9 +52,9 @@ export function useDashboardLogic() {
       const todayStart = getTodayStartTimestamp();
 
       const [spentMonth, spentToday, income] = await Promise.all([
-        getTotalSpentThisMonth(userId, monthStart),
-        getTotalSpentToday(userId, todayStart),
-        getTotalIncome(userId, monthStart),
+        getTotalSpentThisMonth(userId, monthStart, activeAccountId),
+        getTotalSpentToday(userId, todayStart, activeAccountId),
+        getTotalIncome(userId, monthStart, activeAccountId),
       ]);
 
       setTotalIncome(income + user.monthlyIncome);
@@ -68,7 +68,7 @@ export function useDashboardLogic() {
       });
       setPacing(pacingResult);
 
-      const catTotals = await getMonthlySpentByCategory(userId, monthStart);
+      const catTotals = await getMonthlySpentByCategory(userId, monthStart, activeAccountId);
       const allCategories = await categoriesCollection.query().fetch();
       const breakdown: CategoryBreakdownItem[] = [];
 
@@ -81,9 +81,15 @@ export function useDashboardLogic() {
       breakdown.sort((a, b) => b.value - a.value);
       setCategoryBreakdown(breakdown.slice(0, 6));
 
-      const recent = await transactionsCollection
-        .query(Q.where('user_id', userId), Q.sortBy('date', Q.desc))
-        .fetch();
+      const recentConditions = [
+        Q.where('user_id', userId),
+        Q.sortBy('date', Q.desc),
+      ];
+      if (activeAccountId) {
+        recentConditions.push(Q.where('account_id', activeAccountId));
+      }
+
+      const recent = await transactionsCollection.query(...recentConditions).fetch();
 
       const catMap = new Map(allCategories.map(c => [c.id, c]));
 
@@ -101,10 +107,13 @@ export function useDashboardLogic() {
           };
         }),
       );
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.message?.includes('not found')) {
+        useAppStore.getState().clearAuth();
+      }
       console.error('Dashboard load error:', err);
     }
-  }, [userId]);
+  }, [userId, activeAccountId]);
 
   useEffect(() => {
     loadData();
