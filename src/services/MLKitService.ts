@@ -1,7 +1,7 @@
 import type {TextBlock} from '@react-native-ml-kit/text-recognition';
 import type {ParsedTransaction} from './ParserService';
 
-const BACKEND_URL = 'http://localhost:3000/api/parse-receipt';
+const BACKEND_URL = 'https://financeappbackend-rip3.onrender.com/api/parse-receipt';
 
 export interface OCRResult {
   rawText: string;
