@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ScrollView,
   StatusBar,
+  Image,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import {Button, Colors, Typography, Spacing, BorderRadius} from '../../ui';
@@ -14,8 +15,6 @@ import {usersCollection} from '../../database';
 
 const OnboardingScreen: React.FC = () => {
   const [displayName, setDisplayName] = useState('');
-  const [monthlyIncome, setMonthlyIncome] = useState('');
-  const [fixedExpenses, setFixedExpenses] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -24,10 +23,6 @@ const OnboardingScreen: React.FC = () => {
   const handleComplete = async () => {
     if (!displayName.trim()) {
       setError('Please enter your name');
-      return;
-    }
-    if (!monthlyIncome || parseFloat(monthlyIncome) <= 0) {
-      setError('Please enter a valid monthly income');
       return;
     }
 
@@ -39,8 +34,8 @@ const OnboardingScreen: React.FC = () => {
         const user = await usersCollection.find(userId);
         await user.completeOnboarding(
           displayName.trim(),
-          parseFloat(monthlyIncome),
-          parseFloat(fixedExpenses) || 0,
+          0, // monthlyIncome — can be set later in settings
+          0, // fixedExpenses — can be set later in settings
         );
         setOnboarded(true);
       }
@@ -61,10 +56,13 @@ const OnboardingScreen: React.FC = () => {
       <LinearGradient
         colors={[Colors.gradientStart, Colors.gradientEnd]}
         style={styles.header}>
-        <Text style={styles.emoji}>🎯</Text>
-        <Text style={styles.title}>Let's set up your profile</Text>
+        <Image
+          source={require('../../assets/images/finpacelogowithoutbg.png')}
+          style={styles.headerLogo}
+        />
+        <Text style={styles.title}>What should we call you?</Text>
         <Text style={styles.subtitle}>
-          We need a few details to calculate your daily spending pace
+          Just your name and you're all set
         </Text>
       </LinearGradient>
 
@@ -76,58 +74,23 @@ const OnboardingScreen: React.FC = () => {
             placeholder="e.g. Yadhu"
             placeholderTextColor={Colors.textTertiary}
             value={displayName}
-            onChangeText={setDisplayName}
+            onChangeText={text => {
+              setDisplayName(text);
+              setError('');
+            }}
+            autoFocus
           />
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Monthly Income</Text>
-          <View style={styles.amountInput}>
-            <Text style={styles.currencySymbol}>₹</Text>
-            <TextInput
-              style={styles.amountField}
-              placeholder="50,000"
-              placeholderTextColor={Colors.textTertiary}
-              keyboardType="numeric"
-              value={monthlyIncome}
-              onChangeText={text =>
-                setMonthlyIncome(text.replace(/[^0-9.]/g, ''))
-              }
-            />
-          </View>
-          <Text style={styles.helperText}>
-            Your total monthly income before deductions
-          </Text>
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Fixed Monthly Expenses</Text>
-          <View style={styles.amountInput}>
-            <Text style={styles.currencySymbol}>₹</Text>
-            <TextInput
-              style={styles.amountField}
-              placeholder="15,000"
-              placeholderTextColor={Colors.textTertiary}
-              keyboardType="numeric"
-              value={fixedExpenses}
-              onChangeText={text =>
-                setFixedExpenses(text.replace(/[^0-9.]/g, ''))
-              }
-            />
-          </View>
-          <Text style={styles.helperText}>
-            Rent, EMIs, subscriptions — things that don't change
-          </Text>
         </View>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
         <Button
-          title="Start Tracking →"
+          title="Let's Go →"
           onPress={handleComplete}
           loading={loading}
           fullWidth
           size="lg"
+          disabled={!displayName.trim()}
         />
       </View>
     </ScrollView>
@@ -148,19 +111,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xxl,
     alignItems: 'center',
   },
-  emoji: {
-    fontSize: 48,
+  headerLogo: {
+    width: 100,
+    height: 100,
+    resizeMode: 'contain',
     marginBottom: Spacing.lg,
   },
   title: {
     fontSize: Typography.h2,
     fontWeight: '700',
-    color: Colors.textOnPrimary,
+    color: Colors.textPrimary,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: Typography.bodySmall,
-    color: Colors.textOnPrimary,
+    color: Colors.textPrimary,
     opacity: 0.85,
     textAlign: 'center',
     marginTop: Spacing.sm,
@@ -192,34 +157,6 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     borderWidth: 1,
     borderColor: Colors.border,
-  },
-  amountInput: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.background,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  currencySymbol: {
-    fontSize: Typography.h3,
-    fontWeight: '700',
-    color: Colors.primary,
-    paddingLeft: Spacing.lg,
-  },
-  amountField: {
-    flex: 1,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    fontSize: Typography.h3,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-  },
-  helperText: {
-    fontSize: Typography.caption,
-    color: Colors.textTertiary,
-    marginTop: Spacing.xs,
-    paddingLeft: Spacing.xs,
   },
   errorText: {
     fontSize: Typography.caption,

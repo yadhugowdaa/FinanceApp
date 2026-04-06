@@ -241,28 +241,31 @@ const DashboardScreen: React.FC<{navigation: any}> = ({navigation}) => {
               start={{x: 0, y: 0}}
               end={{x: 1, y: 1}}
               style={styles.quickAccessGradient}>
-              <View style={styles.quickAccessGrid}>
-                {['Recurring', 'Loan', 'Transfers', 'More'].map((action, idx) => (
-                  <TouchableOpacity 
-                    key={idx} 
-                    style={styles.quickAccessItem}
-                    onPress={() => {
-                      if (action === 'Recurring') {
-                        navigation.navigate('Recurring');
-                      } else if (action === 'Loan') {
-                        navigation.navigate('Loans');
-                      }
-                    }}>
-                    <View style={styles.quickAccessCircle}>
-                      <Icon 
-                        name={idx === 0 ? 'refresh-cw' : idx === 1 ? 'briefcase' : idx === 2 ? 'send' : 'grid'} 
-                        size={20} 
-                        color="#1A1400" 
-                      />
-                    </View>
-                    <Text style={styles.quickAccessText}>{action}</Text>
-                  </TouchableOpacity>
-                ))}
+              <View style={[styles.quickAccessGrid, {justifyContent: 'space-between', paddingHorizontal: 20}]}>
+                <TouchableOpacity 
+                  style={styles.quickAccessItem}
+                  onPress={() => navigation.navigate('Recurring')}>
+                  <View style={styles.quickAccessCircle}>
+                    <Icon name="refresh-cw" size={20} color="#1A1400" />
+                  </View>
+                  <Text style={styles.quickAccessText}>Recurring</Text>
+                </TouchableOpacity>
+
+                <View style={{justifyContent: 'center', alignItems: 'center', flex: 1}}>
+                  <Image 
+                    source={require('../../assets/images/finpacelogowithoutbg.png')} 
+                    style={{width: 60, height: 60, resizeMode: 'contain'}} 
+                  />
+                </View>
+
+                <TouchableOpacity 
+                  style={styles.quickAccessItem}
+                  onPress={() => navigation.navigate('Loans')}>
+                  <View style={styles.quickAccessCircle}>
+                    <Icon name="briefcase" size={20} color="#1A1400" />
+                  </View>
+                  <Text style={styles.quickAccessText}>Loan</Text>
+                </TouchableOpacity>
               </View>
             </LinearGradient>
           </Animated.View>

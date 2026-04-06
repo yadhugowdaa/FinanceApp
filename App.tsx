@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {View, Text, StyleSheet, ActivityIndicator} from 'react-native';
+import {View, Text, StyleSheet, ActivityIndicator, Image} from 'react-native';
 import {DatabaseProvider} from '@nozbe/watermelondb/react';
 import {database} from './src/database';
 import {seedDefaultCategories} from './src/database/seeds';
@@ -16,11 +16,14 @@ function App(): React.JSX.Element {
   useEffect(() => {
     async function bootstrap() {
       try {
-        // Seed default categories on first launch
-        await seedDefaultCategories();
-        
-        // Spawn pending auto-pays
-        await processRecurringTransactions();
+        // Run bootstrap tasks AND ensure splash shows for at least 2.5s
+        await Promise.all([
+          (async () => {
+            await seedDefaultCategories();
+            await processRecurringTransactions();
+          })(),
+          new Promise(resolve => setTimeout(resolve, 2500)),
+        ]);
 
         setIsReady(true);
       } catch (error) {
@@ -34,8 +37,10 @@ function App(): React.JSX.Element {
   if (!isReady) {
     return (
       <View style={styles.splash}>
-        <Text style={styles.splashIcon}>💰</Text>
-        <Text style={styles.splashTitle}>FinPace</Text>
+        <Image 
+          source={require('./src/assets/images/finpacelogowithoutbg.png')} 
+          style={{width: 180, height: 180, resizeMode: 'contain', marginBottom: 20}} 
+        />
         <ActivityIndicator
           color={Colors.primary}
           size="large"

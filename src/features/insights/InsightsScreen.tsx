@@ -27,10 +27,10 @@ interface CategorySlider {
   reduction: number; // 0-100
 }
 
-const DominoVisualizer = ({ monthlySavings, color, currencySymbol }: { monthlySavings: number, color: string, currencySymbol: string }) => {
+const DominoVisualizer = ({ monthlySavings, color, currencySymbol, investRate }: { monthlySavings: number, color: string, currencySymbol: string, investRate: number }) => {
   if (monthlySavings <= 0) return null;
 
-  const r = 0.01 / 12;
+  const r = investRate / 100 / 12;
   const n = 120; // 10 years
   const futureValue = monthlySavings * ((Math.pow(1 + r, n) - 1) / r);
 
@@ -43,7 +43,7 @@ const DominoVisualizer = ({ monthlySavings, color, currencySymbol }: { monthlySa
     <Animated.View entering={FadeInDown.duration(400)} style={styles.dominoContainer}>
       <View style={styles.dominoTextWrap}>
         <Text style={styles.dominoTitle}>The Domino Effect</Text>
-        <Text style={styles.dominoSubtitle}>Invested at 1% for 10 years</Text>
+        <Text style={styles.dominoSubtitle}>Monthly savings invested at {investRate}% p.a. for 10 years</Text>
         <Text style={[styles.dominoValue, { color }]}>
           {currencySymbol}{futureValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
         </Text>
@@ -72,6 +72,7 @@ const InsightsScreen: React.FC = () => {
   const [totalSpent, setTotalSpent] = useState(0);
   const [totalSaved, setTotalSaved] = useState(0);
   const [newDailyAllowance, setNewDailyAllowance] = useState(0);
+  const [investRate, setInvestRate] = useState(8);
   const [topCategory, setTopCategory] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
@@ -150,7 +151,7 @@ const InsightsScreen: React.FC = () => {
   const updateSlider = (index: number, value: number) => {
     setSliders(prev => {
       const updated = [...prev];
-      updated[index] = {...updated[index], reduction: Math.round(value)};
+      updated[index] = {...updated[index], reduction: Math.round(value * 10) / 10};
       return updated;
     });
   };
@@ -245,7 +246,7 @@ const InsightsScreen: React.FC = () => {
               style={styles.slider}
               minimumValue={0}
               maximumValue={100}
-              step={5}
+              step={0.2}
               value={s.reduction}
               onValueChange={val => updateSlider(idx, val)}
               minimumTrackTintColor={s.category.color}
@@ -255,7 +256,7 @@ const InsightsScreen: React.FC = () => {
 
             <View style={styles.sliderFooter}>
               <Text style={styles.sliderPercent}>
-                Reduce by {s.reduction}%
+                Reduce by {s.reduction.toFixed(1)}%
               </Text>
               {s.reduction > 0 && (
                 <Text style={styles.sliderSave}>
@@ -272,9 +273,34 @@ const InsightsScreen: React.FC = () => {
                monthlySavings={(s.total * s.reduction) / 100} 
                color={s.category.color}
                currencySymbol={currencySymbol}
+               investRate={investRate}
             />
           </View>
         ))}
+
+        {/* Investment Rate Slider */}
+        {totalSaved > 0 && (
+          <View style={styles.investRateBox}>
+            <View style={styles.sliderHeader}>
+              <View style={styles.sliderLeft}>
+                <Icon name="trending-up" size={14} color={Colors.primary} />
+                <Text style={[styles.sliderCatName, {marginLeft: 6}]}>Investment Return Rate</Text>
+              </View>
+              <Text style={[styles.sliderSpent, {color: Colors.primary}]}>{investRate.toFixed(1)}%</Text>
+            </View>
+            <Slider
+              style={styles.slider}
+              minimumValue={0.5}
+              maximumValue={30}
+              step={0.5}
+              value={investRate}
+              onValueChange={val => setInvestRate(Math.round(val * 10) / 10)}
+              minimumTrackTintColor={Colors.primary}
+              maximumTrackTintColor={Colors.borderLight}
+              thumbTintColor={Colors.primary}
+            />
+          </View>
+        )}
       </LiquidGlass>
 
       {/* Category breakdown */}
@@ -537,6 +563,12 @@ const styles = StyleSheet.create({
     height: 60,
     marginTop: -20,
     zIndex: 1,
+  },
+  investRateBox: {
+    marginTop: Spacing.xl,
+    paddingTop: Spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.05)',
   },
 });
 

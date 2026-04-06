@@ -13,18 +13,20 @@ import {
   ScrollView,
   Dimensions,
   KeyboardAvoidingView,
+  Switch,
 } from 'react-native';
 import Animated, {FadeInDown} from 'react-native-reanimated';
 import Icon from 'react-native-vector-icons/Feather';
 import Svg, {Rect, Line, Text as SvgText} from 'react-native-svg';
 import {Colors, Typography, Spacing, BorderRadius} from '../../ui';
 import {useAppStore} from '../../store/useAppStore';
-import {database, loansCollection, loanPaymentsCollection, transactionsCollection, accountsCollection, categoriesCollection} from '../../database';
+import {database, loansCollection, loanPaymentsCollection, transactionsCollection, accountsCollection, categoriesCollection, recurringTransactionsCollection} from '../../database';
 import {Q} from '@nozbe/watermelondb';
 import type Loan from '../../database/models/Loan';
 import type {InterestType} from '../../database/models/Loan';
 import type LoanPayment from '../../database/models/LoanPayment';
 import type Account from '../../database/models/Account';
+import type RecurringTransaction from '../../database/models/RecurringTransaction';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -128,6 +130,10 @@ const LoanScreen: React.FC<{navigation: any}> = ({navigation}) => {
   const [loanInterestType, setLoanInterestType] = useState<InterestType>('compound');
   const [loanLenderBank, setLoanLenderBank] = useState('');
 
+  // Recurring EMI rules mapped by loan name
+  const [recurringRules, setRecurringRules] = useState<RecurringTransaction[]>([]);
+  const [autoPayEnabled, setAutoPayEnabled] = useState(false);
+
   // Add Payment form state
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentNotes, setPaymentNotes] = useState('');
@@ -137,6 +143,13 @@ const LoanScreen: React.FC<{navigation: any}> = ({navigation}) => {
   useEffect(() => {
     const sub = accountsCollection.query().observe().subscribe(setAccounts);
     return () => sub.unsubscribe();
+  }, []);
+
+  const fetchRecurringRules = useCallback(async () => {
+    try {
+      const allRules = await recurringTransactionsCollection.query().fetch();
+      setRecurringRules(allRules);
+    } catch (e) { console.log('Failed to fetch recurring rules', e); }
   }, []);
 
   const fetchLoans = useCallback(async () => {
@@ -214,7 +227,7 @@ const LoanScreen: React.FC<{navigation: any}> = ({navigation}) => {
     }
   }, []);
 
-  useEffect(() => { fetchLoans(); }, [fetchLoans]);
+  useEffect(() => { fetchLoans(); fetchRecurringRules(); }, [fetchLoans, fetchRecurringRules]);
 
   // ── Aggregates ──
   const aggregates = useMemo(() => {
@@ -314,11 +327,41 @@ const LoanScreen: React.FC<{navigation: any}> = ({navigation}) => {
         });
       });
 
+      // If auto pay is enabled, create a recurring rule for this payment amount
+      if (autoPayEnabled) {
+        const loanCategoryId = await getLoanCategoryId();
+        await database.write(async () => {
+          await recurringTransactionsCollection.create(rule => {
+            rule.amount = amount;
+            rule.merchant = (currentLoan?.loan.name || 'Loan') + ' EMI';
+            rule.type = 'expense';
+            rule.frequency = 'monthly';
+            rule.categoryId = loanCategoryId;
+            rule.accountId = paymentAccountId || (accounts.length > 0 ? accounts[0].id : '');
+            rule.userId = userId || 'mock_user_123';
+            rule.status = 'active';
+            rule.nextDate = new Date();
+            rule.endDate = null;
+          });
+        });
+      }
+
       setShowAddPayment(null);
-      setPaymentAmount(''); setPaymentNotes(''); setPaymentAccountId('');
+      setPaymentAmount(''); setPaymentNotes(''); setPaymentAccountId(''); setAutoPayEnabled(false);
       fetchLoans();
+      fetchRecurringRules();
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Failed to add payment.');
+    }
+  };
+
+  const handleToggleRecurring = async (rule: RecurringTransaction) => {
+    try {
+      const newStatus = rule.status === 'active' ? 'paused' : 'active';
+      await rule.setStatus(newStatus);
+      fetchRecurringRules();
+    } catch (err) {
+      Alert.alert('Error', 'Could not update recurring status');
     }
   };
 
@@ -477,13 +520,38 @@ const LoanScreen: React.FC<{navigation: any}> = ({navigation}) => {
             </View>
           )}
 
+          {/* Recurring EMI status */}
+          {(() => {
+            const rule = recurringRules.find(r => r.merchant.includes(loan.name) && r.merchant.includes('EMI'));
+            if (!rule) return null;
+            return (
+              <View style={styles.recurringStatusRow}>
+                <View style={{flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1}}>
+                  <Icon name="refresh-cw" size={14} color={rule.status === 'active' ? '#00E676' : Colors.textTertiary} />
+                  <Text style={{fontSize: Typography.bodySmall, color: rule.status === 'active' ? '#00E676' : Colors.textTertiary, fontWeight: '600'}}>
+                    Auto EMI {rule.status === 'active' ? 'Active' : 'Paused'}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.recurringToggleBtn, rule.status === 'paused' && {borderColor: '#00E676'}]}
+                  onPress={() => handleToggleRecurring(rule)}>
+                  <Icon name={rule.status === 'active' ? 'pause' : 'play'} size={14} color={rule.status === 'active' ? '#FF6B6B' : '#00E676'} />
+                  <Text style={{fontSize: Typography.caption, color: rule.status === 'active' ? '#FF6B6B' : '#00E676', fontWeight: '600'}}>
+                    {rule.status === 'active' ? 'Pause' : 'Resume'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            );
+          })()}
+
           {/* Add Payment Button */}
           <TouchableOpacity style={styles.addPaymentBtn} activeOpacity={0.8} onPress={() => {
             setShowAddPayment(loan.id);
+            setAutoPayEnabled(false);
             if (accounts.length > 0) setPaymentAccountId(accounts[0].id);
           }}>
             <Icon name="plus-circle" size={18} color="#000" />
-            <Text style={styles.addPaymentText}>Add Payment</Text>
+            <Text style={styles.addPaymentText}>Log Payment</Text>
           </TouchableOpacity>
         </View>
       </Animated.View>
@@ -624,6 +692,22 @@ const LoanScreen: React.FC<{navigation: any}> = ({navigation}) => {
                 <Icon name="check" size={20} color="#000" />
                 <Text style={styles.submitText}>Record Payment</Text>
               </TouchableOpacity>
+
+              {/* Auto Pay Toggle */}
+              <View style={[styles.autoPayRow, {marginTop: Spacing.lg}]}>
+                <View style={{flex: 1}}>
+                  <Text style={{fontSize: Typography.bodySmall, color: Colors.textPrimary, fontWeight: '600'}}>Repeat Monthly</Text>
+                  <Text style={{fontSize: Typography.caption, color: Colors.textTertiary, marginTop: 2}}>
+                    Auto-log this payment every month
+                  </Text>
+                </View>
+                <Switch
+                  value={autoPayEnabled}
+                  onValueChange={setAutoPayEnabled}
+                  trackColor={{false: 'rgba(255,255,255,0.1)', true: 'rgba(255,183,0,0.4)'}}
+                  thumbColor={autoPayEnabled ? Colors.primary : Colors.textTertiary}
+                />
+              </View>
             </View>
           </TouchableOpacity>
         </KeyboardAvoidingView>
@@ -774,6 +858,25 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md, marginTop: Spacing.md,
   },
   submitText: { fontSize: Typography.body, fontWeight: '700', color: '#000' },
+  autoPayRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: BorderRadius.md,
+    padding: Spacing.lg, marginBottom: Spacing.lg,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
+  },
+  recurringStatusRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md,
+    backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: BorderRadius.md,
+    marginHorizontal: Spacing.lg, marginBottom: Spacing.sm,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
+  },
+  recurringToggleBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.round, borderWidth: 1,
+    borderColor: '#FF6B6B',
+  },
 });
 
 export default LoanScreen;

@@ -57,7 +57,7 @@ export const Button: React.FC<ButtonProps> = ({
         disabled={isDisabled}
         style={[fullWidth && styles.fullWidth, style]}>
         <LinearGradient
-          colors={[Colors.gradientStart, Colors.gradientEnd]}
+          colors={[Colors.primary, Colors.primaryDark]}
           start={{x: 0, y: 0}}
           end={{x: 1, y: 0}}
           style={[
@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   disabled: {
-    opacity: 0.5,
+    opacity: 0.35,
   },
   fullWidth: {
     width: '100%',
