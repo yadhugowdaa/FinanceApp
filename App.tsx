@@ -22,7 +22,7 @@ function App(): React.JSX.Element {
             await seedDefaultCategories();
             await processRecurringTransactions();
           })(),
-          new Promise(resolve => setTimeout(resolve, 2500)),
+          new Promise(resolve => setTimeout(resolve, 1000)),
         ]);
 
         setIsReady(true);
