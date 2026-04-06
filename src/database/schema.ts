@@ -1,7 +1,7 @@
 import {appSchema, tableSchema} from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-  version: 2,
+  version: 6,
   tables: [
     tableSchema({
       name: 'users',
@@ -68,6 +68,52 @@ export const schema = appSchema({
         {name: 'remaining_budget', type: 'number'},
         {name: 'daily_pacing_amount', type: 'number'},
         {name: 'days_remaining', type: 'number'},
+        {name: 'user_id', type: 'string', isIndexed: true},
+        {name: 'created_at', type: 'number'},
+        {name: 'updated_at', type: 'number'},
+      ],
+    }),
+    tableSchema({
+      name: 'recurring_transactions',
+      columns: [
+        {name: 'amount', type: 'number'},
+        {name: 'merchant', type: 'string'},
+        {name: 'category_id', type: 'string', isIndexed: true},
+        {name: 'account_id', type: 'string', isIndexed: true},
+        {name: 'user_id', type: 'string', isIndexed: true},
+        {name: 'type', type: 'string'}, // 'expense' | 'income'
+        {name: 'frequency', type: 'string'}, // 'weekly', 'monthly', 'yearly'
+        {name: 'next_date', type: 'number'},
+        {name: 'end_date', type: 'number', isOptional: true},
+        {name: 'status', type: 'string'}, // 'active', 'paused'
+        {name: 'created_at', type: 'number'},
+        {name: 'updated_at', type: 'number'},
+      ],
+    }),
+    tableSchema({
+      name: 'loans',
+      columns: [
+        {name: 'name', type: 'string'},
+        {name: 'principal_amount', type: 'number'},
+        {name: 'interest_rate', type: 'number'}, // annual %
+        {name: 'interest_type', type: 'string'}, // 'simple' | 'compound'
+        {name: 'tenure_months', type: 'number'},
+        {name: 'start_date', type: 'number'},
+        {name: 'lender_bank', type: 'string', isOptional: true},
+        {name: 'status', type: 'string'}, // 'active' | 'closed'
+        {name: 'user_id', type: 'string', isIndexed: true},
+        {name: 'created_at', type: 'number'},
+        {name: 'updated_at', type: 'number'},
+      ],
+    }),
+    tableSchema({
+      name: 'loan_payments',
+      columns: [
+        {name: 'loan_id', type: 'string', isIndexed: true},
+        {name: 'amount', type: 'number'},
+        {name: 'date', type: 'number'},
+        {name: 'notes', type: 'string', isOptional: true},
+        {name: 'account_id', type: 'string', isOptional: true, isIndexed: true},
         {name: 'user_id', type: 'string', isIndexed: true},
         {name: 'created_at', type: 'number'},
         {name: 'updated_at', type: 'number'},

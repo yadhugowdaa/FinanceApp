@@ -3,8 +3,12 @@ import {View, Text, StyleSheet, ActivityIndicator} from 'react-native';
 import {DatabaseProvider} from '@nozbe/watermelondb/react';
 import {database} from './src/database';
 import {seedDefaultCategories} from './src/database/seeds';
+import {processRecurringTransactions} from './src/services/RecurringService';
 import AppNavigator from './src/navigation/AppNavigator';
+import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {Colors, Typography} from './src/ui';
+
+const queryClient = new QueryClient();
 
 function App(): React.JSX.Element {
   const [isReady, setIsReady] = useState(false);
@@ -14,6 +18,10 @@ function App(): React.JSX.Element {
       try {
         // Seed default categories on first launch
         await seedDefaultCategories();
+        
+        // Spawn pending auto-pays
+        await processRecurringTransactions();
+
         setIsReady(true);
       } catch (error) {
         console.error('Bootstrap error:', error);
@@ -38,9 +46,11 @@ function App(): React.JSX.Element {
   }
 
   return (
-    <DatabaseProvider database={database}>
-      <AppNavigator />
-    </DatabaseProvider>
+    <QueryClientProvider client={queryClient}>
+      <DatabaseProvider database={database}>
+        <AppNavigator />
+      </DatabaseProvider>
+    </QueryClientProvider>
   );
 }
 

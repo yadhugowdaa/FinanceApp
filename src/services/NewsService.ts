@@ -12,7 +12,10 @@ export interface FinanceNewsArticle {
 const RSS_FEEDS = [
   { url: 'https://finance.yahoo.com/news/rss', source: 'Yahoo Finance' },
   { url: 'https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms', source: 'Economic Times' },
-  { url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000664', source: 'CNBC Finance' }
+  { url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000664', source: 'CNBC Finance' },
+  { url: 'https://www.livemint.com/rss/markets', source: 'LiveMint' },
+  { url: 'https://www.moneycontrol.com/rss/MCtopnews.xml', source: 'Moneycontrol' },
+  { url: 'https://www.business-standard.com/rss/markets-106.rss', source: 'Business Standard' }
 ];
 
 /**

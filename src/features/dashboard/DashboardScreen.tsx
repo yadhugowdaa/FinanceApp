@@ -22,6 +22,7 @@ import {getCategoryDoodle} from '../../utils/CategoryImages';
 import {useAppStore} from '../../store/useAppStore';
 import {accountsCollection} from '../../database';
 import {Account} from '../../database/models';
+import BottomSheet from '@gorhom/bottom-sheet';
 
 const DashboardScreen: React.FC<{navigation: any}> = ({navigation}) => {
   // === ALL HOOKS FIRST ===
@@ -241,8 +242,17 @@ const DashboardScreen: React.FC<{navigation: any}> = ({navigation}) => {
               end={{x: 1, y: 1}}
               style={styles.quickAccessGradient}>
               <View style={styles.quickAccessGrid}>
-                {['Autopay', 'Loan', 'Transfers', 'More'].map((action, idx) => (
-                  <TouchableOpacity key={idx} style={styles.quickAccessItem}>
+                {['Recurring', 'Loan', 'Transfers', 'More'].map((action, idx) => (
+                  <TouchableOpacity 
+                    key={idx} 
+                    style={styles.quickAccessItem}
+                    onPress={() => {
+                      if (action === 'Recurring') {
+                        navigation.navigate('Recurring');
+                      } else if (action === 'Loan') {
+                        navigation.navigate('Loans');
+                      }
+                    }}>
                     <View style={styles.quickAccessCircle}>
                       <Icon 
                         name={idx === 0 ? 'refresh-cw' : idx === 1 ? 'briefcase' : idx === 2 ? 'send' : 'grid'} 
@@ -290,7 +300,14 @@ const DashboardScreen: React.FC<{navigation: any}> = ({navigation}) => {
                         />
                       </View>
                       <View>
-                        <Text style={styles.txnMerchant}>{txn.merchant}</Text>
+                        <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
+                          {txn.source === 'recurring' && (
+                            <View style={{backgroundColor: 'rgba(0,0,0,0.1)', padding: 2, borderRadius: 4}}>
+                              <Icon name="refresh-cw" size={10} color="#000" />
+                            </View>
+                          )}
+                          <Text style={styles.txnMerchant}>{txn.merchant}</Text>
+                        </View>
                         <Text style={styles.txnDate}>
                           {new Date(txn.date).toLocaleDateString('en-IN', {
                             day: 'numeric',

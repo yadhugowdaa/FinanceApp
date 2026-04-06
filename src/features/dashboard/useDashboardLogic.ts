@@ -26,6 +26,7 @@ export type RecentTransactionItem = {
   merchant: string;
   amount: number;
   type: string;
+  source: string;
   date: Date;
   categoryName: string;
   categoryColor: string;
@@ -101,6 +102,7 @@ export function useDashboardLogic(activeAccountId?: string) {
             merchant: t.merchant,
             amount: t.amount,
             type: t.type,
+            source: t.source,
             date: t.date,
             categoryName: cat?.name || 'Other',
             categoryColor: cat?.color || '#D6CEC3',

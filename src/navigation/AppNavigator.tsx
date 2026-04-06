@@ -28,6 +28,8 @@ import InsightsScreen from '../features/insights/InsightsScreen';
 import SettingsScreen from '../features/settings/SettingsScreen';
 import AddTransactionSheet from '../features/transactions/AddTransactionSheet';
 import NewsScreen from '../features/news/NewsScreen';
+import LoanScreen from '../features/loans/LoanScreen';
+import RecurringScreen from '../features/recurring/RecurringScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -339,7 +341,11 @@ export default function AppNavigator() {
           ) : !isOnboarded ? (
             <Stack.Screen name="Onboarding" component={OnboardingScreen} />
           ) : (
-            <Stack.Screen name="Main" component={MainTabs} />
+            <>
+              <Stack.Screen name="Main" component={MainTabs} />
+              <Stack.Screen name="Loans" component={LoanScreen} />
+              <Stack.Screen name="Recurring" component={RecurringScreen} />
+            </>
           )}
         </Stack.Navigator>
       </NavigationContainer>

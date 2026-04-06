@@ -1,4 +1,4 @@
-import React, {useCallback} from 'react';
+import React, {useCallback, useState, useMemo} from 'react';
 import {
   View,
   Text,
@@ -10,13 +10,15 @@ import {
   RefreshControl,
   StatusBar,
   Platform,
+  TextInput,
+  ScrollView,
 } from 'react-native';
 import {useQuery} from '@tanstack/react-query';
 import Animated, {FadeInDown} from 'react-native-reanimated';
 import Icon from 'react-native-vector-icons/Feather';
 
 import {fetchFinanceNews, FinanceNewsArticle} from '../../services/NewsService';
-import {Colors, Typography, Spacing, BorderRadius, LiquidGlass} from '../../ui';
+import {Colors, Typography, Spacing, BorderRadius} from '../../ui';
 
 const NewsCard = ({
   item,
@@ -33,6 +35,27 @@ const NewsCard = ({
     }
   };
 
+  const generateExpertPrompt = (url: string) => 
+    `Act as an expert financial advisor. Provide a simple, jargon-free summary of the following article. URL: ${url}`;
+
+  const handleAskGpt = () => {
+    if (item.link) {
+      const url = `https://chatgpt.com/?q=${encodeURIComponent(generateExpertPrompt(item.link))}`;
+      Linking.openURL(url).catch(err =>
+        console.error('Failed to open ChatGPT URL', err),
+      );
+    }
+  };
+
+  const handleAskClaude = () => {
+    if (item.link) {
+      const url = `https://claude.ai/new?q=${encodeURIComponent(generateExpertPrompt(item.link))}`;
+      Linking.openURL(url).catch(err =>
+        console.error('Failed to open Claude URL', err),
+      );
+    }
+  };
+
   const publishDate = new Date(item.pubDate);
   const formattedDate = publishDate.toLocaleDateString('en-IN', {
     day: 'numeric',
@@ -43,34 +66,49 @@ const NewsCard = ({
 
   return (
     <Animated.View entering={FadeInDown.delay(100 + index * 50).duration(400).springify()}>
-      <TouchableOpacity activeOpacity={0.8} onPress={handlePress}>
-        <LiquidGlass borderRadius={BorderRadius.md} style={styles.card}>
-          <View style={styles.cardHeader}>
-            <View style={styles.sourceTag}>
-              <Text style={styles.sourceText}>{item.source}</Text>
-            </View>
-            <Text style={styles.dateText}>{formattedDate}</Text>
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <View style={styles.sourceTag}>
+            <Text style={styles.sourceText}>{item.source}</Text>
           </View>
-          
-          <Text style={styles.titleText}>{item.title}</Text>
-          
-          {item.description ? (
-            <Text style={styles.snippetText} numberOfLines={3}>
-              {item.description}
-            </Text>
-          ) : null}
-          
-          <View style={styles.footerRow}>
+          <Text style={styles.dateText}>{formattedDate}</Text>
+        </View>
+        
+        <Text style={styles.titleText}>{item.title}</Text>
+        
+        {item.description ? (
+          <Text style={styles.snippetText} numberOfLines={3}>
+            {item.description}
+          </Text>
+        ) : null}
+        
+        <View style={styles.footerRow}>
+          <TouchableOpacity style={styles.actionBtn} activeOpacity={0.8} onPress={handlePress}>
             <Text style={styles.readMoreText}>Read Article</Text>
             <Icon name="chevron-right" size={16} color={Colors.primary} />
+          </TouchableOpacity>
+
+          <View style={styles.aiBtnGroup}>
+            <TouchableOpacity style={[styles.actionBtn, styles.gptBtn]} activeOpacity={0.8} onPress={handleAskGpt}>
+              <Icon name="message-circle" size={14} color="#FFF" />
+              <Text style={styles.aiBtnText}>Ask GPT</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={[styles.actionBtn, styles.claudeBtn]} activeOpacity={0.8} onPress={handleAskClaude}>
+              <Icon name="cpu" size={14} color="#FFF" />
+              <Text style={styles.aiBtnText}>Ask Claude</Text>
+            </TouchableOpacity>
           </View>
-        </LiquidGlass>
-      </TouchableOpacity>
+        </View>
+      </View>
     </Animated.View>
   );
 };
 
 const NewsScreen: React.FC = () => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedSources, setSelectedSources] = useState<string[]>([]);
+
   // Use TanStack Query to fetch and aggressively cache news for 15 mins
   const {data, isLoading, isFetching, isError, error, refetch} = useQuery({
     queryKey: ['financeNews'],
@@ -78,6 +116,39 @@ const NewsScreen: React.FC = () => {
     staleTime: 1000 * 60 * 15, 
     refetchInterval: 1000 * 60 * 15,
   });
+
+  const availableSources = useMemo(() => {
+    if (!data) return [];
+    return Array.from(new Set(data.map(item => item.source)));
+  }, [data]);
+
+  const filteredData = useMemo(() => {
+    if (!data) return [];
+    let result = data;
+    
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        item =>
+          item.title.toLowerCase().includes(q) ||
+          item.description?.toLowerCase().includes(q)
+      );
+    }
+    
+    if (selectedSources.length > 0) {
+      result = result.filter(item => selectedSources.includes(item.source));
+    }
+    
+    return result;
+  }, [data, searchQuery, selectedSources]);
+
+  const toggleSource = (source: string) => {
+    setSelectedSources(prev =>
+      prev.includes(source)
+        ? prev.filter(s => s !== source)
+        : [...prev, source]
+    );
+  };
 
   const handleRefresh = useCallback(() => {
     refetch();
@@ -110,17 +181,59 @@ const NewsScreen: React.FC = () => {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
-      {/* Heavy sticky glass header */}
+      {/* Header */}
       <View style={styles.header}>
-        <LiquidGlass style={styles.headerGlass} useBlur={true} borderRadius={0}>
+        <View style={styles.headerNormal}>
           <Text style={styles.screenTitle}>Market News</Text>
-          <Text style={styles.screenSubtitle}>Latest updates powered by Yahoo Finance</Text>
-        </LiquidGlass>
+          <Text style={styles.screenSubtitle}>Latest financial updates</Text>
+          
+          {availableSources.length > 0 && (
+            <View style={styles.filterContainer}>
+              <View style={styles.searchBox}>
+                <Icon name="search" size={16} color={Colors.textSecondary} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search articles..."
+                  placeholderTextColor={Colors.textTertiary}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchQuery('')}>
+                    <Icon name="x-circle" size={16} color={Colors.textSecondary} />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.sourceScrollContent}
+              >
+                {availableSources.map(source => {
+                  const isActive = selectedSources.includes(source);
+                  return (
+                    <TouchableOpacity
+                      key={source}
+                      activeOpacity={0.8}
+                      style={[styles.sourceChip, isActive && styles.sourceChipActive]}
+                      onPress={() => toggleSource(source)}
+                    >
+                      <Text style={[styles.sourceChipText, isActive && styles.sourceChipTextActive]}>
+                        {source}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          )}
+        </View>
       </View>
 
       <FlatList
-        data={data || []}
-        keyExtractor={item => item.id}
+        data={filteredData}
+        keyExtractor={(item, index) => `${item.id}-${index}`}
         renderItem={({item, index}) => <NewsCard item={item} index={index} />}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
@@ -192,10 +305,11 @@ const styles = StyleSheet.create({
     zIndex: 10,
     backgroundColor: Colors.background,
   },
-  headerGlass: {
+  headerNormal: {
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.lg,
     paddingTop: Spacing.xs,
+    backgroundColor: Colors.background,
   },
   screenTitle: {
     fontSize: Typography.h1,
@@ -208,6 +322,51 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: 2,
   },
+  filterContainer: {
+    marginTop: Spacing.lg,
+    gap: Spacing.md,
+  },
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    height: 44,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  searchInput: {
+    flex: 1,
+    color: Colors.textPrimary,
+    fontSize: Typography.body,
+    marginLeft: Spacing.sm,
+  },
+  sourceScrollContent: {
+    gap: Spacing.sm,
+    paddingBottom: Spacing.xs, 
+  },
+  sourceChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.round,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  sourceChipActive: {
+    backgroundColor: 'rgba(255, 183, 0, 0.1)',
+    borderColor: Colors.primary,
+  },
+  sourceChipText: {
+    fontSize: Typography.caption,
+    color: Colors.textSecondary,
+    fontWeight: '500',
+  },
+  sourceChipTextActive: {
+    color: Colors.primary,
+    fontWeight: '600',
+  },
   listContent: {
     padding: Spacing.lg,
     paddingBottom: 100, // accommodate bottom tab bar
@@ -217,6 +376,8 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -256,13 +417,38 @@ const styles = StyleSheet.create({
   footerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    alignSelf: 'flex-start',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: Spacing.md,
     marginTop: Spacing.xs,
+  },
+  aiBtnGroup: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  actionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: 'rgba(255, 183, 0, 0.1)',
   },
   readMoreText: {
     fontSize: Typography.caption,
     color: Colors.primary,
+    fontWeight: '600',
+  },
+  gptBtn: {
+    backgroundColor: '#10A37F',
+  },
+  claudeBtn: {
+    backgroundColor: '#D97757', // Anthropic brand color leaning
+  },
+  aiBtnText: {
+    fontSize: Typography.caption,
+    color: '#FFF',
     fontWeight: '600',
   },
 });

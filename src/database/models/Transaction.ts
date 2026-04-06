@@ -12,7 +12,7 @@ import type User from './User';
 import type Account from './Account';
 
 export type TransactionType = 'expense' | 'income';
-export type TransactionSource = 'manual' | 'sms' | 'notification' | 'ocr';
+export type TransactionSource = 'manual' | 'sms' | 'notification' | 'ocr' | 'recurring';
 
 export default class Transaction extends Model {
   static table = 'transactions';
