@@ -1,97 +1,115 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# FinPace - Your Intelligent Financial Companion
 
-# Getting Started
+FinPace, anoffline-first personal finance application with a focus on privacy, behavioral "pacing," and GenAI receipt parsing. 
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+---
 
-## Step 1: Start Metro
+## ⚠️ Important Installation Notes
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+### 1. Google Play Protect Bypass
+Because this app is manually side-loaded via an APK and not downloaded from the Google Play Store, Android will flag it. 
+**To install successfully:**
+1. Open the **Google Play Store** app.
+2. Tap your **Profile Picture** (top right).
+3. Select **Play Protect** -> Tap the **Settings Gear** (top right).
+4. Turn **OFF** "Scan apps with Play Protect".
+5. Install the APK. *(You can turn Play Protect back on immediately after!).*
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+### 2. Backend Cold Start (Render Free Tier)
+Our AI Microservice (which powers the Receipt Scanner) is hosted on the free tier of [Render.com](https://render.com). 
+- **The Catch:** If the backend hasn't received a request in 15 minutes, it "goes to sleep".
+- **Impact:** The very first time you scan a receipt after a long break, it may take **30 to 50 seconds** for the AI to respond while the server wakes up. Subsequent scans will be fast (~3-5 seconds).
 
-```sh
-# Using npm
-npm start
+---
 
-# OR using Yarn
-yarn start
+## 🚀 Tech Stack & Core Decisions
+
+### 1. Frontend Framework: React Native with TypeScript
+Chose React Native for its rapid unified cross-platform development while maintaining native-like feel. TypeScript enforces strict schema typing across all database models and services, ensuring zero runtime crashes for null financial values.
+
+### 2. State Management: Zustand (`useAppStore`)
+We completely avoided Redux to prevent boilerplate bloat. Zustand provides a decentralized, lightning-fast store instance perfect for holding global session values (like Authentication state, active user profile, and globally selected bank accounts) without triggering massive DOM re-renders.
+
+### 3. Data Persistence (Crucial): WatermelonDB
+Financial data requires strict privacy. Instead of depending on Firebase or Supabase (where user data sits on external servers), we implemented an **Offline-First SQLite architecture via WatermelonDB**. 
+- **Trade-off:** No out-of-the-box cross-device syncing, BUT it guarantees 100% privacy and zero-latency UI interaction. 
+- **Why WatermelonDB?** It uses lazy-loading Observables. Even if the user has 10,000 transactions, the UI stays pinned at 60 FPS because it only loads the data actively shown on the screen.
+
+### 4. UI / Animations: Reanimated & Liquid Glass
+We avoided massive UI kits like NativeBase or UI Kitten. Instead, we built a bespoke **Apple Liquid Glass** design system using `react-native-linear-gradient` and `@react-native-community/blur`, powered by `react-native-reanimated` for frictionless 60fps micro-animations (like The Domino Effect slider).
+
+### 5. Backend: Stateless Express Microservice
+Instead of adding a massive python AI environment to the app, we built a lightweight Node.js/Express backend. 
+- **Stateless:** It has absolutely no database. It accepts an image upload, proxies a secure call to the **Nvidia Llama 3.2 90B Vision API**, formats the result into JSON, and destroys the image. All actual transaction-saving happens safely on the mobile device.
+
+---
+
+## 📂 Project Architecture
+
+We follow a strict **Feature-Based Modular Architecture**. Business logic is entirely decoupled from the UI.
+
+```text
+FinanceApp/
+├── App.tsx                 # Root bootstrap (Splash Screen delays, Engine Triggers)
+├── backend/                # The complete stateless Express server
+│   ├── server.ts           # Nvidia integration logic
+│   └── package.json
+├── src/
+│   ├── assets/             # Branding (FinPace Logo, Fonts)
+│   ├── database/           # All WatermelonDB infrastructure
+│   │   ├── index.ts        # Database instantiation
+│   │   ├── schema.ts       # Local SQLite table structures
+│   │   └── models/         # ORM Classes (Transaction, Loan, Account, etc.)
+│   ├── features/           # Grouped by business domain (Screens + Data hooks)
+│   │   ├── auth/           # Login & Onboarding flows
+│   │   ├── dashboard/      # Core Ledger, Pacing Visualizations
+│   │   ├── insights/       # The Domino Effect Simulator
+│   │   ├── loans/          # EMI Amortization UI & Modals
+│   │   └── transactions/   # Add Transaction sheets, Receipt Uploaders
+│   ├── services/           # Heavy Business Logic (Zero UI)
+│   │   ├── MLKitService.ts # API fetchers for Render Backend
+│   │   ├── PacingEngine.ts # Calculates "Safe to Spend" daily limits
+│   │   └── RecurringService# Boot sequence trigger that checks Auto-Pay dates
+│   ├── ui/                 # Reusable Design System (Dumb Components)
+│   │   ├── Button.tsx      # Standardized brand gradient interactive buttons
+│   │   ├── LiquidGlass.tsx # Wrapper component pushing the dark-glass aesthetic
+│   │   └── EmptyState.tsx  # Standalone graphics for empty lists
+│   └── utils/
+│       └── CategoryImages  # Mapping logic for Doodles vs Categories
 ```
 
-## Step 2: Build and run your app
+---
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+## 💾 Core Database Model
 
-### Android
+1. **`users`**: Singleton profile tracking Onboarding status and global base currency.
+2. **`accounts`**: "Wallets" mapped with custom colors. Ensures money is categorized by source (e.g. HDFC Bank, Cash).
+3. **`categories`**: Spending buckets.
+4. **`transactions`**: The master ledger. Connects a Category to an Account.
+5. **`recurring_transactions`**: Rule-sets (e.g. "Every 15th of month, deduct 500"). Evaluated instantly when the user opens the app via `RecurringService`.
+6. **`loans` & `loan_payments`**: Custom subsystem handling complex Principal vs EMI interest tracking inside the isolated debt sector.
 
-```sh
-# Using npm
-npm run android
+---
 
-# OR using Yarn
-yarn android
+## 🔧 Developer Quick Start
+
+**1. Running the Mobile App:**
+```bash
+npm install
+# For Android:
+npx react-native run-android
+# For iOS:
+cd ios && pod install && cd ..
+npx react-native run-ios
 ```
 
-### iOS
-
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
+**2. Running the Local Backend (Optional):**
+If you want to run the AI features locally rather than hitting the live Render app:
+```bash
+cd backend
+npm install
+# Ensure you have your private key!
+echo "NVIDIA_API_KEY=your_key_here" > .env
+npx tsx server.ts
 ```
-
-Then, and every time you update your native dependencies, run:
-
-```sh
-bundle exec pod install
-```
-
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
-
-```sh
-# Using npm
-npm run ios
-
-# OR using Yarn
-yarn ios
-```
-
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
-
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
-
-## Step 3: Modify your app
-
-Now that you have successfully run the app, let's make changes!
-
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+*(You will need to update the `BACKEND_URL` in `src/services/MLKitService.ts` back to `localhost:3000` to test locally)*
